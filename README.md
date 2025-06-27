@@ -1,4 +1,4 @@
-## Leximin in Matching: Minimizing Maximum Covariate Distance
+## Leximin Matching: Minimizing Maximum Covariate Distance
 
 The Hungarian algorithm minimizes total covariate distance between treated and control units, ensuring optimal aggregate match quality. But this can leave some treated units with particularly poor covariate matches. Leximin matching offers an alternative objective that minimizes the maximum covariate distance first, then the second-maximum, and so on.
 

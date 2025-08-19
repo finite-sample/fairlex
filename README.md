@@ -1,6 +1,12 @@
 fairlex
 =======
 
+[![PyPI version](https://img.shields.io/pypi/v/fairlex.svg)](https://pypi.org/project/fairlex/)
+[![PyPI Downloads](https://static.pepy.tech/badge/fairlex)](https://pepy.tech/projects/fairlex)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+
 ``fairlex`` implements risk-averse calibration of survey weights using leximin objectives. 
 Unlike standard calibration that either (a) hits all margins exactly (sometimes creating 
 spiky weights) or (b) accepts uneven misses, leximin prioritizes uniform guarantees: it 

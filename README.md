@@ -1,78 +1,95 @@
-## Leximin Matching: Minimizing Maximum Covariate Distance
+fairlex
+=======
 
-The Hungarian algorithm minimizes total covariate distance between treated and control units, ensuring optimal aggregate match quality. But this can leave some treated units with particularly poor covariate matches. Leximin matching offers an alternative objective that minimizes the maximum covariate distance first, then the second-maximum, and so on.
+``fairlex`` provides modern, well‐tested routines for performing **leximin
+calibration** of survey weights. It is designed to be both easy to use and
+flexible enough to support different calibration objectives. The two
+principal calibration strategies are:
 
-## Distance Measurement and Objective Functions
+* **Residual leximin** – finds weights that minimise the worst absolute
+  deviation from the target margins (``min–max`` residuals). This can drive
+  margin errors down to machine precision, but may result in large weight
+  adjustments.
+* **Weight‐fair leximin** – first performs residual leximin, then
+  minimises the largest relative change from the base weights while keeping
+  residuals at their optimum level. This yields a more stable set of weights.
 
-We measure covariate distance using Euclidean distance in standardized covariate space. For treated unit i with covariates X_i = [age_i, income_i, education_i] and control unit j with X_j = [age_j, income_j, education_j], the distance is:
+Installation
+------------
 
-d(i,j) = √[(age_i - age_j)² + (income_i - income_j)² + (education_i - education_j)²]
+``fairlex`` requires Python 3.8+ and depends on ``numpy`` and
+``scipy``. You can install it via pip once uploaded to PyPI:
 
-where covariates are standardized to have mean 0 and variance 1.
+```bash
+pip install fairlex
+```
 
-**Hungarian:** Minimize ∑ᵢ d(i, matched_j) over all valid assignments
+For development, clone this repository and install the dependencies:
 
-**Leximin:** Minimize max{d(i, matched_j)} first, then second-max, then third-max, etc.
+```bash
+git clone https://github.com/yourusername/fairlex.git
+cd fairlex
+pip install -e .[dev]
+```
 
-## When Hungarian and Leximin Disagree
+Usage
+-----
 
-Consider 3 treated units, 3 controls, with two possible complete assignments:
+Construct a membership matrix ``A`` of shape ``(m, n)``, where each row
+corresponds to a margin and each column to a survey unit. Each entry
+represents whether the unit belongs to the margin (1.0 or 0.0 for simple
+groups). Supply the target totals ``b``, the base weights ``w0`` and call
+the desired calibration function:
 
-**Assignment A:** distances [1.0, 1.0, 9.0] → total = 11.0, max = 9.0  
-**Assignment B:** distances [2.0, 3.0, 7.0] → total = 12.0, max = 7.0
+```python
+import numpy as np
+from fairlex import leximin_weight_fair, evaluate_solution
 
-- **Hungarian chooses A** (minimizes total: 11.0 < 12.0)
-- **Leximin chooses B** (minimizes max: 7.0 < 9.0)
+# Example data: two margins (sex and age) plus total
+A = np.array([
+    # sex: female
+    [1, 0, 1, 0, 1],
+    # sex: male
+    [0, 1, 0, 1, 0],
+    # age: young
+    [1, 1, 0, 0, 1],
+    # age: old
+    [0, 0, 1, 1, 0],
+    # total
+    [1, 1, 1, 1, 1],
+], dtype=float)
+target = np.array([6, 4, 6, 4, 10], dtype=float)  # Feasible targets
+w0 = np.array([1, 1, 1, 1, 1], dtype=float)
 
-Hungarian accepts the terrible 9.0-distance match because it reduces total cost. Leximin rejects it to avoid leaving any unit with an extremely poor match. "Lexicographically" means optimizing distances in worst-to-best order: first minimize the worst distance, then among solutions achieving that minimum, minimize the second-worst, and so on.
+# Calibrate using weight‐fair leximin
+res = leximin_weight_fair(A, target, w0, min_ratio=0.5, max_ratio=2.0)
 
-## Practical Application: Citizens' Assembly Selection
+# Inspect the weights and diagnostics
+weights = res.w
+metrics = evaluate_solution(A, target, weights, base_weights=w0)
+print(metrics)
+```
 
-A recent Nature paper applied leximin to selecting representative panels for democratic participation. Researchers developed algorithms that maximize the minimum probability any individual gets selected for a citizens' assembly, while maintaining demographic quotas. Their LEXIMIN algorithm has been deployed by organizations across multiple countries, selecting over 40 assemblies.
+``evaluate_solution`` returns a dictionary with a variety of diagnostics,
+including the maximum absolute residual, effective sample size (ESS), design
+effect and quantiles of the weight distribution. If you supply the base
+weights via ``base_weights``, it also reports relative deviations from the
+original weights.
 
-The parallel to matching is direct: ensure representativeness without systematically excluding any demographic combinations - analogous to achieving covariate balance without leaving treated units with extremely poor matches.
+Testing
+-------
 
-## Empirical Evidence
+Run the unit tests with pytest:
 
-We compared Hungarian and leximin across three covariate distribution scenarios:
+```bash
+pytest -q
+```
 
-**Balanced distributions:** Both methods achieved similar maximum distances (2.0027) and treatment effect estimates. Method choice made minimal difference.
+Continuous integration is configured in ``.github/workflows/python-package.yml``
+to run the test suite on multiple Python versions.
 
-**Clustered distributions:** Leximin reduced maximum covariate distance by 19.6% (2.05 → 1.64) compared to Hungarian, though with slightly worse average balance.
+License
+-------
 
-**Sparse distributions with outliers:** Leximin achieved better treatment effect estimation (bias: -0.014 vs 0.330) despite having worse average covariate balance.
-
-The consistent pattern: leximin sacrifices average balance to protect worst-matched units, which can improve causal inference when covariate distributions are challenging.
-
-## Implementation
-
-The computational challenge is that naive LP formulations with fractional variables produce incorrect results. Partial assignments artificially reduce maximum distance constraints. Solutions include:
-
-1. **Integer programming** (computationally expensive)
-2. **Bottleneck assignment** (reformulate as minimum bottleneck matching)
-
-We use bottleneck assignment, which finds the minimum possible maximum edge weight in a perfect matching - equivalent to leximin for most practical problems while remaining computationally tractable.
-
-## When to Use Leximin
-
-**Choose leximin when:**
-- Covariate distributions are clustered or contain outliers
-- Worst-case matches pose analytical risks
-- Individual match quality matters more than aggregate efficiency
-
-**Choose Hungarian when:**
-- Covariates are well-distributed
-- Computational speed is critical
-- Theoretical optimality guarantees are required
-
-## Limitations
-
-Results come from specific simulation settings. The 19.6% maximum distance improvement and better bias performance need validation across broader contexts. The relationship between individual fairness and causal inference quality requires deeper investigation.
-
-Extension to 1-to-k matching adds complexity. Our sequential approach provides a reasonable heuristic, but optimal k-matching under leximin criteria remains algorithmically challenging.
-
-## Conclusion
-
-Leximin matching minimizes maximum covariate distance rather than total distance. In challenging scenarios with clustered covariates or outlier units, protecting worst-matched individuals can improve treatment effect estimation even when average covariate balance appears worse.
-
-The choice between Hungarian and leximin reflects competing statistical objectives: aggregate optimality versus individual match quality. Both have their place depending on the covariate distribution and research priorities.
+This project is licensed under the MIT License. See the ``LICENSE`` file for
+details.

@@ -1,8 +1,22 @@
 fairlex
 =======
 
-``fairlex`` provides modern, well‐tested routines for performing **leximin
-calibration** of survey weights. It is designed to be both easy to use and
+``fairlex`` implements risk-averse calibration of survey weights using leximin objectives. 
+Unlike standard calibration that either (a) hits all margins exactly (sometimes creating 
+spiky weights) or (b) accepts uneven misses, leximin prioritizes uniform guarantees: it 
+shrinks the worst margin error first (then the next worst, etc.) and can also cap how 
+far any weight is allowed to move from its base value.
+
+Why use it?
+-----------
+
+When exact calibration is infeasible under weight caps.
+
+1. When targets are noisy/inconsistent and you want bounded misses rather than fragile exact hits.
+2. When you need fairness/stability—no margin (or subgroup) becomes the sacrificial lamb.
+3. In rolling waves, to prevent whiplash by bounding the worst per-unit weight changes.
+
+``fairlex`` is designed to be both easy to use and
 flexible enough to support different calibration objectives. The two
 principal calibration strategies are:
 
@@ -76,20 +90,6 @@ effect and quantiles of the weight distribution. If you supply the base
 weights via ``base_weights``, it also reports relative deviations from the
 original weights.
 
-Testing
--------
-
-Run the unit tests with pytest:
-
-```bash
-pytest -q
-```
-
-Continuous integration is configured in ``.github/workflows/python-package.yml``
-to run the test suite on multiple Python versions.
-
-License
--------
 
 This project is licensed under the MIT License. See the ``LICENSE`` file for
 details.

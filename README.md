@@ -27,7 +27,7 @@ pip install fairlex
 For development, clone this repository and install the dependencies:
 
 ```bash
-git clone https://github.com/yourusername/fairlex.git
+git clone https://github.com/finite-sample/fairlex.git
 cd fairlex
 pip install -e .[dev]
 ```

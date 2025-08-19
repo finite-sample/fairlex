@@ -1,5 +1,5 @@
-fairlex
-=======
+fairlex: leximin calibration
+============================
 
 [![PyPI version](https://img.shields.io/pypi/v/fairlex.svg)](https://pypi.org/project/fairlex/)
 [![PyPI Downloads](https://static.pepy.tech/badge/fairlex)](https://pepy.tech/projects/fairlex)

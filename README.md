@@ -75,21 +75,3 @@ including the maximum absolute residual, effective sample size (ESS), design
 effect and quantiles of the weight distribution. If you supply the base
 weights via ``base_weights``, it also reports relative deviations from the
 original weights.
-
-Testing
--------
-
-Run the unit tests with pytest:
-
-```bash
-pytest -q
-```
-
-Continuous integration is configured in ``.github/workflows/python-package.yml``
-to run the test suite on multiple Python versions.
-
-License
--------
-
-This project is licensed under the MIT License. See the ``LICENSE`` file for
-details.

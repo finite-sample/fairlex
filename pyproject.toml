@@ -30,13 +30,6 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Information Analysis",
 ]
 
-[project.optional-dependencies]
-docs = [
-  "sphinx>=7.0",
-  "furo>=2024.1.29",
-  "sphinx-autodoc-typehints>=1.25",
-]
-
 [dependency-groups]
 dev = [
   "pytest>=7.0",
@@ -48,6 +41,11 @@ dev = [
 test = [
   "pytest>=7.0",
   "pytest-cov>=4.0"
+]
+docs = [
+  "sphinx>=7.0",
+  "furo>=2024.1.29",
+  "sphinx-autodoc-typehints>=1.25",
 ]
 
 [project.urls]

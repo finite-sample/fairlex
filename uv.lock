@@ -264,13 +264,6 @@ dependencies = [
     { name = "scipy" },
 ]
 
-[package.optional-dependencies]
-docs = [
-    { name = "furo" },
-    { name = "sphinx" },
-    { name = "sphinx-autodoc-typehints" },
-]
-
 [package.dev-dependencies]
 dev = [
     { name = "mypy" },
@@ -279,6 +272,11 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
 ]
+docs = [
+    { name = "furo" },
+    { name = "sphinx" },
+    { name = "sphinx-autodoc-typehints" },
+]
 test = [
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -286,13 +284,9 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "furo", marker = "extra == 'docs'", specifier = ">=2024.1.29" },
     { name = "numpy", specifier = ">=1.21" },
     { name = "scipy", specifier = ">=1.6" },
-    { name = "sphinx", marker = "extra == 'docs'", specifier = ">=7.0" },
-    { name = "sphinx-autodoc-typehints", marker = "extra == 'docs'", specifier = ">=1.25" },
 ]
-provides-extras = ["docs"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -301,6 +295,11 @@ dev = [
     { name = "pytest", specifier = ">=7.0" },
     { name = "pytest-cov", specifier = ">=4.0" },
     { name = "ruff", specifier = ">=0.7.0" },
+]
+docs = [
+    { name = "furo", specifier = ">=2024.1.29" },
+    { name = "sphinx", specifier = ">=7.0" },
+    { name = "sphinx-autodoc-typehints", specifier = ">=1.25" },
 ]
 test = [
     { name = "pytest", specifier = ">=7.0" },

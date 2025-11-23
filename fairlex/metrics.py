@@ -4,17 +4,17 @@ This module contains helper functions to assess the quality of calibrated
 weights. The primary entry point, :func:`evaluate_solution`, returns a
 dictionary of commonly used diagnostics:
 
-* ``resid_max_abs`` – the maximum absolute residual across all margins.
-* ``resid_p95`` – the 95th percentile of absolute residuals.
-* ``resid_median`` – the median absolute residual.
-* ``ESS`` – the Kish effective sample size of the weights.
-* ``deff`` – design effect due to the weights (n / ESS).
-* ``weight_max`` – maximum weight.
-* ``weight_p99`` – 99th percentile of weights.
-* ``weight_p95`` – 95th percentile of weights.
-* ``weight_median`` – median weight.
-* ``weight_min`` – minimum weight.
-* ``total_error`` – the difference between the weighted total and the target
+* ``resid_max_abs`` - the maximum absolute residual across all margins.
+* ``resid_p95`` - the 95th percentile of absolute residuals.
+* ``resid_median`` - the median absolute residual.
+* ``ESS`` - the Kish effective sample size of the weights.
+* ``deff`` - design effect due to the weights (n / ESS).
+* ``weight_max`` - maximum weight.
+* ``weight_p99`` - 99th percentile of weights.
+* ``weight_p95`` - 95th percentile of weights.
+* ``weight_median`` - median weight.
+* ``weight_min`` - minimum weight.
+* ``total_error`` - the difference between the weighted total and the target
   total in the last margin (assumed to be the sum of membership for the
   entire population).
 
@@ -28,8 +28,8 @@ from __future__ import annotations
 import numpy as np
 
 __all__ = [
-    "effective_sample_size",
     "design_effect",
+    "effective_sample_size",
     "evaluate_solution",
 ]
 
@@ -86,6 +86,57 @@ def design_effect(weights: np.ndarray) -> float:
     return float(len(w) / ess)
 
 
+def _compute_residual_metrics(
+    A: np.ndarray, b: np.ndarray, w: np.ndarray
+) -> dict[str, float]:
+    """Compute residual-based metrics."""
+    resid = A @ w - b
+    abs_resid = np.abs(resid)
+    return {
+        "resid_max_abs": float(np.max(abs_resid)),
+        "resid_p95": float(np.percentile(abs_resid, 95)),
+        "resid_median": float(np.median(abs_resid)),
+        "total_error": float((A[-1] @ w) - b[-1]) if A.shape[0] > 0 else float("nan"),
+    }
+
+
+def _compute_weight_metrics(
+    w: np.ndarray, quantiles: tuple[float, ...]
+) -> dict[str, float]:
+    """Compute weight distribution metrics."""
+    # Calculate all quantiles plus min/max
+    q_vals = np.quantile(w, (*quantiles, 0.0, 1.0))
+    q_map = dict(zip((*quantiles, 0.0, 1.0), q_vals, strict=False))
+
+    # Sort the requested quantiles for deterministic mapping
+    sorted_q = sorted(quantiles, reverse=True)
+
+    return {
+        "weight_max": float(q_map[1.0]),
+        "weight_min": float(q_map[0.0]),
+        "weight_p99": float(q_map.get(0.99, q_map[sorted_q[0]])),
+        "weight_p95": float(
+            q_map.get(0.95, q_map[sorted_q[min(1, len(sorted_q) - 1)]])
+        ),
+        "weight_median": float(q_map.get(0.5, np.median(w))),
+        "ESS": float(effective_sample_size(w)),
+        "deff": float(design_effect(w)),
+    }
+
+
+def _compute_relative_deviations(
+    w: np.ndarray, base_weights: np.ndarray
+) -> dict[str, float]:
+    """Compute relative deviation metrics."""
+    bw = np.asarray(base_weights, dtype=float)
+    rel_dev = np.abs(w - bw) / np.where(bw == 0, 1.0, np.abs(bw))
+    return {
+        "max_rel_dev": float(np.max(rel_dev)),
+        "p95_rel_dev": float(np.percentile(rel_dev, 95)),
+        "median_rel_dev": float(np.median(rel_dev)),
+    }
+
+
 def evaluate_solution(
     A: np.ndarray,
     b: np.ndarray,
@@ -93,7 +144,7 @@ def evaluate_solution(
     *,
     quantiles: tuple[float, ...] = (0.99, 0.95, 0.5),
     base_weights: np.ndarray | None = None,
-) -> dict:
+) -> dict[str, float]:
     """Compute summary diagnostics for a calibration solution.
 
     Parameters
@@ -122,52 +173,12 @@ def evaluate_solution(
     w = np.asarray(w, dtype=float)
     A = np.asarray(A, dtype=float)
     b = np.asarray(b, dtype=float)
-    # Residuals
-    resid = A @ w - b
-    abs_resid = np.abs(resid)
-    resid_max_abs = float(np.max(abs_resid))
-    resid_p95 = float(np.percentile(abs_resid, 95))
-    resid_median = float(np.median(abs_resid))
-    # Weight summary
-    q_vals = np.quantile(w, quantiles + (0.0, 1.0))  # compute tails for min and max
-    # quantiles returned in ascending order; append min and max at the end
-    # Extract weight quantiles by position
-    # Example: for quantiles (0.99, 0.95, 0.5) we get q_vals[0]=0th?? Actually quantiles appended in order: (0.99, 0.95, 0.5, 0.0, 1.0)
-    # We'll map them explicitly.
-    # Build a dict for clarity
-    q_map = dict(zip(quantiles + (0.0, 1.0), q_vals, strict=False))
-    weight_max = float(q_map[1.0])
-    weight_min = float(q_map[0.0])
-    # Sort the requested quantiles for deterministic mapping
-    sorted_q = sorted(quantiles, reverse=True)
-    # weight_p99 corresponds to highest quantile (e.g., 0.99) if present
-    weight_p99 = float(q_map.get(0.99, q_map[sorted_q[0]]))
-    # weight_p95 corresponds to 0.95 or next available
-    weight_p95 = float(q_map.get(0.95, q_map[sorted_q[min(1, len(sorted_q) - 1)]]))
-    # weight_median corresponds to 0.5 or median quantile in list
-    weight_median = float(q_map.get(0.5, np.median(w)))
-    ess = effective_sample_size(w)
-    deff = design_effect(w)
-    total_error = float((A[-1] @ w) - b[-1]) if A.shape[0] > 0 else float('nan')
-    result = {
-        "resid_max_abs": resid_max_abs,
-        "resid_p95": resid_p95,
-        "resid_median": resid_median,
-        "ESS": float(ess),
-        "deff": float(deff),
-        "weight_max": weight_max,
-        "weight_p99": weight_p99,
-        "weight_p95": weight_p95,
-        "weight_median": weight_median,
-        "weight_min": weight_min,
-        "total_error": total_error,
-    }
+
+    # Compute metrics using helper functions
+    result = _compute_residual_metrics(A, b, w)
+    result.update(_compute_weight_metrics(w, quantiles))
+
     if base_weights is not None:
-        bw = np.asarray(base_weights, dtype=float)
-        rel_dev = np.abs(w - bw) / np.where(bw == 0, 1.0, np.abs(bw))
-        result.update(
-            max_rel_dev=float(np.max(rel_dev)),
-            p95_rel_dev=float(np.percentile(rel_dev, 95)),
-            median_rel_dev=float(np.median(rel_dev)),
-        )
+        result.update(_compute_relative_deviations(w, base_weights))
+
     return result

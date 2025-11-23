@@ -1,10 +1,10 @@
 """Core calibration routines for fairlex.
 
-This module contains implementations of leximin‐style calibration for survey
+This module contains implementations of leximin-style calibration for survey
 weights. Two variants are provided:
 
 * ``leximin_residual`` minimises the worst absolute deviation between the
-  calibrated and target margins (a ``min–max`` problem). It is akin to
+  calibrated and target margins (a ``min-max`` problem). It is akin to
   solving a Chebyshev approximation on the residuals. While this drives
   margin errors down, it can lead to large deviations from the original
   weights if the margin targets are difficult to meet within bounds.
@@ -38,11 +38,14 @@ from dataclasses import dataclass
 
 import numpy as np
 
+# Constants
+EXPECTED_MATRIX_DIMENSIONS = 2
+
 try:
     # SciPy is used for linear programming; HiGHS is fast and reliable.
     from scipy.optimize import linprog  # type: ignore
 except Exception:  # pragma: no cover
-    linprog = None  # type: ignore
+    linprog = None
 
 
 @dataclass
@@ -72,7 +75,9 @@ class CalibrationResult:
     message: str
 
 
-def _validate_inputs(A: np.ndarray, b: np.ndarray, w0: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def _validate_inputs(
+    A: np.ndarray, b: np.ndarray, w0: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Validate and coerce input arrays to ensure they have compatible shapes.
 
     Parameters
@@ -87,7 +92,7 @@ def _validate_inputs(A: np.ndarray, b: np.ndarray, w0: np.ndarray) -> tuple[np.n
     Returns
     -------
     (A, b, w0) : tuple of ndarrays
-        Validated and dtype‐coerced versions of the inputs.
+        Validated and dtype-coerced versions of the inputs.
 
     Raises
     ------
@@ -97,8 +102,8 @@ def _validate_inputs(A: np.ndarray, b: np.ndarray, w0: np.ndarray) -> tuple[np.n
     A = np.asarray(A, dtype=float)
     b = np.asarray(b, dtype=float)
     w0 = np.asarray(w0, dtype=float)
-    if A.ndim != 2:
-        raise ValueError(f"A must be two‐dimensional, got shape {A.shape}")
+    if A.ndim != EXPECTED_MATRIX_DIMENSIONS:
+        raise ValueError(f"A must be two-dimensional, got shape {A.shape}")
     m, n = A.shape
     if b.shape != (m,):
         raise ValueError(f"b must be of shape {(m,)}, got {b.shape}")
@@ -107,7 +112,12 @@ def _validate_inputs(A: np.ndarray, b: np.ndarray, w0: np.ndarray) -> tuple[np.n
     return A, b, w0
 
 
-def _solve_lp(c, A_ub, b_ub, bounds):
+def _solve_lp(
+    c: np.ndarray,
+    A_ub: np.ndarray,
+    b_ub: np.ndarray,
+    bounds: list[tuple[float | None, float | None]],
+) -> "scipy.optimize.OptimizeResult":  # type: ignore[name-defined]  # noqa: F821
     """Solve a linear programming problem using SciPy HiGHS.
 
     This helper centralises the call to ``scipy.optimize.linprog`` and
@@ -220,7 +230,74 @@ def leximin_residual(
     x = res.x
     w = x[:n]
     epsilon = x[-1]
-    return CalibrationResult(w=w, epsilon=epsilon, t=None, status=res.status, message=res.message)
+    return CalibrationResult(
+        w=w, epsilon=epsilon, t=None, status=res.status, message=res.message
+    )
+
+
+def _setup_weight_fair_constraints(
+    A: np.ndarray,
+    b: np.ndarray,
+    w0: np.ndarray,
+    epsilon_opt: float,
+    *,
+    min_ratio: float,
+    max_ratio: float,
+    slack: float,
+) -> tuple[np.ndarray, np.ndarray, list[tuple[float | None, float | None]]]:
+    """Set up constraints for the weight-fair stage of calibration.
+
+    Returns
+    -------
+    A_ub : ndarray
+        Inequality constraint matrix.
+    b_ub : ndarray
+        Inequality constraint right hand side.
+    bounds : list
+        Variable bounds.
+    """
+    m, n = A.shape
+
+    # Variables: w (n) and t (1)
+    # Bounds: w within [w0*min_ratio, w0*max_ratio], t >= 0
+    bounds = [(w0[i] * min_ratio, w0[i] * max_ratio) for i in range(n)] + [(0, None)]
+
+    # Build inequality constraints
+    # Residual constraints: +/- (A_j w - b_j) <= epsilon_opt + slack
+    # We'll build 2*m inequalities of the form A_j w + 0*t <= b_j + epsilon_opt + slack
+    # and -A_j w + 0*t <= -b_j + epsilon_opt + slack
+    total_constraints = 2 * m + 2 * n  # residual constraints + weight change bounds
+    A_ub = np.zeros((total_constraints, n + 1))
+    b_ub = np.zeros(total_constraints)
+
+    # Residual constraints
+    for j in range(m):
+        # A_j w <= b_j + epsilon_opt + slack
+        A_ub[2 * j, :n] = A[j]
+        A_ub[2 * j, -1] = 0.0
+        b_ub[2 * j] = b[j] + epsilon_opt + slack
+        # -A_j w <= -b_j + epsilon_opt + slack
+        A_ub[2 * j + 1, :n] = -A[j]
+        A_ub[2 * j + 1, -1] = 0.0
+        b_ub[2 * j + 1] = -b[j] + epsilon_opt + slack
+
+    # Weight change bounds: for each i, w_i - w0_i <= t * w0_i and -(w_i - w0_i) <= t * w0_i
+    offset = 2 * m
+    for i in range(n):
+        # w_i - w0_i - t * w0_i <= 0  -> 1*w_i - w0_i* t <= w0_i
+        row = np.zeros(n + 1)
+        row[i] = 1.0
+        row[-1] = -w0[i]
+        A_ub[offset + 2 * i] = row
+        b_ub[offset + 2 * i] = w0[i]
+        # -w_i + w0_i - t * w0_i <= 0  -> -1*w_i - w0_i* t <= -w0_i
+        row = np.zeros(n + 1)
+        row[i] = -1.0
+        row[-1] = -w0[i]
+        A_ub[offset + 2 * i + 1] = row
+        b_ub[offset + 2 * i + 1] = -w0[i]
+
+    return A_ub, b_ub, bounds
 
 
 def leximin_weight_fair(
@@ -280,53 +357,26 @@ def leximin_weight_fair(
         if return_stages:
             return stage1, stage1
         return stage1
+
     # Set up the second stage: minimise t subject to residual constraints and weight change bounds
     A, b, w0 = _validate_inputs(A, b, w0)
-    m, n = A.shape
-    epsilon_opt = stage1.epsilon
+    n = A.shape[1]
+
     # Variables: w (n) and t (1)
     # Objective: minimise t
     c = np.zeros(n + 1)
     c[-1] = 1.0
-    # Bounds: w within [w0*min_ratio, w0*max_ratio], t >= 0
-    bounds = [(w0[i] * min_ratio, w0[i] * max_ratio) for i in range(n)] + [(0, None)]
-    # Build inequality constraints
-    # Residual constraints: +/- (A_j w - b_j) <= epsilon_opt + slack
-    # We'll build 2*m inequalities of the form A_j w + 0*t <= b_j + epsilon_opt + slack
-    # and -A_j w + 0*t <= -b_j + epsilon_opt + slack
-    total_constraints = 2 * m + 2 * n  # residual constraints + weight change bounds
-    A_ub = np.zeros((total_constraints, n + 1))
-    b_ub = np.zeros(total_constraints)
-    # Residual constraints
-    for j in range(m):
-        # A_j w <= b_j + epsilon_opt + slack
-        A_ub[2 * j, :n] = A[j]
-        A_ub[2 * j, -1] = 0.0
-        b_ub[2 * j] = b[j] + epsilon_opt + slack
-        # -A_j w <= -b_j + epsilon_opt + slack
-        A_ub[2 * j + 1, :n] = -A[j]
-        A_ub[2 * j + 1, -1] = 0.0
-        b_ub[2 * j + 1] = -b[j] + epsilon_opt + slack
-    # Weight change bounds: for each i, w_i - w0_i <= t * w0_i and -(w_i - w0_i) <= t * w0_i
-    offset = 2 * m
-    for i in range(n):
-        # w_i - w0_i - t * w0_i <= 0  -> 1*w_i - w0_i* t <= w0_i
-        row = np.zeros(n + 1)
-        row[i] = 1.0
-        row[-1] = -w0[i]
-        A_ub[offset + 2 * i] = row
-        b_ub[offset + 2 * i] = w0[i]
-        # -w_i + w0_i - t * w0_i <= 0  -> -1*w_i - w0_i* t <= -w0_i
-        row = np.zeros(n + 1)
-        row[i] = -1.0
-        row[-1] = -w0[i]
-        A_ub[offset + 2 * i + 1] = row
-        b_ub[offset + 2 * i + 1] = -w0[i]
+
+    # Set up constraints using helper function
+    A_ub, b_ub, bounds = _setup_weight_fair_constraints(
+        A, b, w0, stage1.epsilon, min_ratio=min_ratio, max_ratio=max_ratio, slack=slack
+    )
+
     res = _solve_lp(c, A_ub, b_ub, bounds)
     if not res.success:
         stage2 = CalibrationResult(
             w=np.full_like(w0, np.nan),
-            epsilon=epsilon_opt,
+            epsilon=stage1.epsilon,
             t=np.nan,
             status=res.status,
             message=res.message,
@@ -334,10 +384,13 @@ def leximin_weight_fair(
         if return_stages:
             return stage1, stage2
         return stage2
+
     x = res.x
     w = x[:n]
     t_opt = x[-1]
-    stage2 = CalibrationResult(w=w, epsilon=epsilon_opt, t=t_opt, status=res.status, message=res.message)
+    stage2 = CalibrationResult(
+        w=w, epsilon=stage1.epsilon, t=t_opt, status=res.status, message=res.message
+    )
     if return_stages:
         return stage1, stage2
     return stage2

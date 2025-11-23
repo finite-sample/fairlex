@@ -92,6 +92,7 @@ ignore = [
   "B008",   # do not perform function calls in argument defaults
   "T201",   # print found
   "PLR0913", # too many arguments to function call
+  "UP037",  # remove quotes from type annotation (conflicts with forward refs)
 ]
 
 [tool.ruff.lint.per-file-ignores]

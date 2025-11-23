@@ -29,7 +29,7 @@ __all__ = [
 ]
 
 # Public API
-from .calibration import leximin_residual, leximin_weight_fair, CalibrationResult
+from .calibration import CalibrationResult, leximin_residual, leximin_weight_fair
 from .metrics import evaluate_solution
 
 # Expose the package version at runtime

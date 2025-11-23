@@ -135,7 +135,7 @@ def evaluate_solution(
     # Example: for quantiles (0.99, 0.95, 0.5) we get q_vals[0]=0th?? Actually quantiles appended in order: (0.99, 0.95, 0.5, 0.0, 1.0)
     # We'll map them explicitly.
     # Build a dict for clarity
-    q_map = {q: v for q, v in zip(quantiles + (0.0, 1.0), q_vals)}
+    q_map = dict(zip(quantiles + (0.0, 1.0), q_vals, strict=False))
     weight_max = float(q_map[1.0])
     weight_min = float(q_map[0.0])
     # Sort the requested quantiles for deterministic mapping

@@ -35,14 +35,13 @@ functions will raise an informative ``ImportError``.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Optional, Tuple
 
 import numpy as np
 
 try:
     # SciPy is used for linear programming; HiGHS is fast and reliable.
     from scipy.optimize import linprog  # type: ignore
-except Exception as e:  # pragma: no cover
+except Exception:  # pragma: no cover
     linprog = None  # type: ignore
 
 
@@ -68,12 +67,12 @@ class CalibrationResult:
 
     w: np.ndarray
     epsilon: float
-    t: Optional[float]
+    t: float | None
     status: int
     message: str
 
 
-def _validate_inputs(A: np.ndarray, b: np.ndarray, w0: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def _validate_inputs(A: np.ndarray, b: np.ndarray, w0: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Validate and coerce input arrays to ensure they have compatible shapes.
 
     Parameters
@@ -233,7 +232,7 @@ def leximin_weight_fair(
     max_ratio: float = 10.0,
     slack: float = 0.0,
     return_stages: bool = False,
-) -> CalibrationResult | Tuple[CalibrationResult, CalibrationResult]:
+) -> CalibrationResult | tuple[CalibrationResult, CalibrationResult]:
     r"""Compute weights via residual leximin followed by weight-fair refinement.
 
     This function first solves the residual minimisation problem as in

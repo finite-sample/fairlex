@@ -7,7 +7,7 @@ weights and diagnostics.
 
 import numpy as np
 
-from fairlex import leximin_weight_fair, evaluate_solution
+from fairlex import evaluate_solution, leximin_weight_fair
 
 
 def main() -> None:

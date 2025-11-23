@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=65", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling>=1.21.1"]
+build-backend = "hatchling.build"
 
 [project]
 name = "fairlex"
@@ -11,7 +11,7 @@ authors = [
 ]
 license = { text = "MIT" }
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 dependencies = [
   "numpy>=1.21",
   "scipy>=1.6",
@@ -22,20 +22,96 @@ classifiers = [
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
-  "Programming Language :: Python :: 3.8",
-  "Programming Language :: Python :: 3.9",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Intended Audience :: Science/Research",
   "Topic :: Scientific/Engineering :: Mathematics",
   "Topic :: Scientific/Engineering :: Information Analysis",
 ]
 
 [project.optional-dependencies]
+docs = [
+  "sphinx>=7.0",
+  "furo>=2024.1.29",
+  "sphinx-autodoc-typehints>=1.25",
+]
+
+[dependency-groups]
 dev = [
   "pytest>=7.0",
+  "pytest-cov>=4.0",
+  "ruff>=0.7.0",
+  "mypy>=1.0",
+  "pre-commit>=3.0"
+]
+test = [
+  "pytest>=7.0",
+  "pytest-cov>=4.0"
 ]
 
 [project.urls]
 "Homepage" = "https://github.com/finite-sample/fairlex"
-"Source" = "https://github.com/finite-sample/fairlex"
+"Repository" = "https://github.com/finite-sample/fairlex"
+"Bug Tracker" = "https://github.com/finite-sample/fairlex/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["fairlex"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+preview = true
+exclude = [
+  ".git",
+  "__pycache__",
+  "build",
+  "dist",
+  ".venv",
+  "docs"
+]
+
+[tool.ruff.lint]
+select = [
+  "E",   # pycodestyle errors
+  "W",   # pycodestyle warnings
+  "F",   # pyflakes
+  "I",   # import sorting
+  "B",   # bugbear
+  "C4",  # comprehensions
+  "UP",  # pyupgrade
+  "PL",  # pylint
+  "PIE", # pie
+  "T20", # print detection
+  "SIM", # simplify
+  "LOG", # logging
+  "RUF", # ruff-specific
+]
+ignore = [
+  "E501",   # line too long (handled by formatter)
+  "B008",   # do not perform function calls in argument defaults
+  "T201",   # print found
+  "PLR0913", # too many arguments to function call
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/*" = ["T201", "PLR2004"]
+"examples/*" = ["T201"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["fairlex"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+check_untyped_defs = true
+strict = true
+show_error_codes = true
+pretty = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "--cov=fairlex --cov-report=html --cov-report=term-missing"

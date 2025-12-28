@@ -1,9 +1,8 @@
 """Configuration file for the Sphinx documentation builder."""
 
-import os
 import sys
-from pathlib import Path
 from importlib.metadata import metadata
+from pathlib import Path
 
 # Add the project root to the Python path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -14,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 pkg_metadata = metadata("fairlex")
 
 project = pkg_metadata["Name"]
-# Extract author from Author-email field  
+# Extract author from Author-email field
 author_email = pkg_metadata["Author-email"]
 # Parse "Name <email>" format
 author = author_email.split("<")[0].strip()
@@ -33,6 +32,7 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
     "sphinx_autodoc_typehints",
+    "nbsphinx",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -89,3 +89,23 @@ typehints_fully_qualified = False
 always_document_param_types = True
 typehints_document_rtype = True
 typehints_use_rtype = True
+
+# -- nbsphinx configuration ------------------------------------------------
+
+# Execute notebooks during build
+nbsphinx_execute = "always"
+
+# Allow errors during execution for debugging
+nbsphinx_allow_errors = True
+
+# Use Python 3 kernel
+nbsphinx_kernel_name = "python3"
+
+# 10-minute timeout for notebook execution
+nbsphinx_timeout = 600
+
+# Configure figure formats and DPI for better output
+nbsphinx_execute_arguments = [
+    "--InlineBackend.figure_formats={'svg', 'pdf'}",
+    "--InlineBackend.rc={'figure.dpi': 96}",
+]

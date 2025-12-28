@@ -30,6 +30,9 @@ jobs:
     - name: Set up Python
       run: uv python install
     
+    - name: Install pandoc
+      run: sudo apt-get update && sudo apt-get install -y pandoc
+    
     - name: Install dependencies
       run: uv sync --group docs
     

@@ -47,6 +47,10 @@ docs = [
   "sphinx>=7.0",
   "furo>=2024.1.29",
   "sphinx-autodoc-typehints>=1.25",
+  "nbsphinx>=0.9.0",
+  "ipython>=8.0.0",
+  "jupyter>=1.0.0",
+  "pandoc>=2.0",
 ]
 
 [project.urls]
@@ -67,7 +71,8 @@ exclude = [
   "build",
   "dist",
   ".venv",
-  "docs"
+  "docs",
+  "examples"
 ]
 
 [tool.ruff.lint]
@@ -97,7 +102,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
 "tests/*" = ["T201", "PLR2004"]
-"examples/*" = ["T201"]
+"docs/examples/*" = ["T201"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["fairlex"]

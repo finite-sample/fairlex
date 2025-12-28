@@ -72,8 +72,7 @@ exclude = [
   "build",
   "dist",
   ".venv",
-  "docs",
-  "examples"
+  "docs"
 ]
 
 [tool.ruff.lint]
@@ -118,7 +117,6 @@ style = "google"
 exclude = [
   "tests/*",
   "docs/*",
-  "examples/*",
   "build/*",
   "dist/*",
   "__pycache__/*"

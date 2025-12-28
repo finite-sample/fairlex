@@ -14,22 +14,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Installation
 ```bash
 # For development with test dependencies
-pip install -e .[dev]
+uv sync --group dev
 ```
 
 ### Testing
 ```bash
 # Run all tests
-pytest -q
+uv run pytest -q
 
 # Run tests with color output (as used in CI)
-pytest -q --color=yes
+uv run pytest -q --color=yes
 ```
 
 ### Running Examples
 ```bash
-# Run the basic example
-python examples/basic_example.py
+# Run the basic example (Jupyter notebook)
+cd docs/examples && uv run jupyter notebook basic_example.ipynb
 ```
 
 ## Code Architecture
@@ -57,13 +57,14 @@ Both calibration methods solve sequential linear programming problems:
 Weight bounds are specified as multiplicative ratios relative to base weights (e.g., `min_ratio=0.5, max_ratio=2.0`).
 
 ### Dependencies
-- **Required**: numpy>=1.21, scipy>=1.6
-- **Development**: pytest>=7.0
-- **Python**: 3.8+ (tested on 3.9, 3.10, 3.11 in CI)
+- **Required**: numpy>=1.26.0, scipy>=1.11.0
+- **Development**: pytest>=7.0, ruff>=0.7.0, pyright>=1.1.0, deptry>=0.20.0
+- **Python**: 3.12+ (tested on 3.12, 3.13, 3.14 in CI)
 
 ### Testing Strategy
-- CI runs on Python 3.9, 3.10, 3.11
+- CI runs on Python 3.12, 3.13, 3.14
 - Tests located in `tests/` directory with comprehensive coverage
-- Use `pytest -q` for quiet output matching CI configuration  
+- Use `uv run pytest -q` for quiet output matching CI configuration  
 - Test categories: input validation, simple cases, edge cases, numerical stability
 - All algorithms verified for mathematical correctness
+- Quality checks: ruff (linting/formatting), pyright (type checking), deptry (dependency analysis)

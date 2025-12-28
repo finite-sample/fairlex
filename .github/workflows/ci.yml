@@ -36,6 +36,9 @@ jobs:
     - name: Run type checking
       run: uv run pyright
     
+    - name: Run dependency analysis
+      run: uv run deptry .
+    
     - name: Run tests
       run: uv run pytest -q --color=yes
 

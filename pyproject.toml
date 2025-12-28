@@ -37,7 +37,8 @@ dev = [
   "ruff>=0.7.0",
   "pre-commit>=3.0",
   "pydoclint>=0.3.0",
-  "pyright>=1.1.0"
+  "pyright>=1.1.0",
+  "deptry>=0.20.0"
 ]
 test = [
   "pytest>=7.0",
@@ -152,3 +153,7 @@ reportUnknownParameterType = false
 reportUnknownVariableType = false
 reportUnknownMemberType = false
 reportUnknownArgumentType = false
+
+[tool.deptry]
+extend_exclude = ["tests", "docs", "examples"]
+per_rule_ignores = { DEP002 = ["pytest", "pytest-cov", "pre-commit", "pydoclint", "pyright", "sphinx", "furo", "sphinx-autodoc-typehints", "nbsphinx", "ipython", "jupyter", "pandoc"] }

@@ -4,17 +4,17 @@ build-backend = "hatchling.build"
 
 [project]
 name = "fairlex"
-version = "0.1.0"
+version = "0.3.0"
 description = "Leximin calibration for survey weights"
 authors = [
   { name = "Gaurav Sood", email = "contact@gsood.com" },
 ]
 license = { text = "MIT" }
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
-  "numpy>=1.21",
-  "scipy>=1.6",
+  "numpy>=1.26.0",
+  "scipy>=1.11.0",
 ]
 classifiers = [
   "Development Status :: 3 - Alpha",
@@ -22,9 +22,9 @@ classifiers = [
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
-  "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Intended Audience :: Science/Research",
   "Topic :: Scientific/Engineering :: Mathematics",
   "Topic :: Scientific/Engineering :: Information Analysis",
@@ -35,8 +35,9 @@ dev = [
   "pytest>=7.0",
   "pytest-cov>=4.0",
   "ruff>=0.7.0",
-  "mypy>=1.0",
-  "pre-commit>=3.0"
+  "pre-commit>=3.0",
+  "pydoclint>=0.3.0",
+  "pyright>=1.1.0"
 ]
 test = [
   "pytest>=7.0",
@@ -58,7 +59,7 @@ packages = ["fairlex"]
 
 [tool.ruff]
 line-length = 88
-target-version = "py311"
+target-version = "py312"
 preview = true
 exclude = [
   ".git",
@@ -101,16 +102,48 @@ ignore = [
 [tool.ruff.lint.isort]
 known-first-party = ["fairlex"]
 
-[tool.mypy]
-python_version = "3.11"
-warn_return_any = true
-warn_unused_configs = true
-check_untyped_defs = true
-strict = true
-show_error_codes = true
-pretty = true
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "--cov=fairlex --cov-report=html --cov-report=term-missing"
+
+[tool.pydoclint]
+style = "google"
+exclude = [
+  "tests/*",
+  "docs/*",
+  "examples/*",
+  "build/*",
+  "dist/*",
+  "__pycache__/*"
+]
+check-return-types = true
+check-yield-types = true
+arg-type-hints-in-docstring = true
+arg-type-hints-in-signature = true
+allow-init-docstring = true
+
+[tool.pyright]
+include = ["fairlex"]
+exclude = [
+  "tests",
+  "docs", 
+  "examples",
+  "build",
+  "dist",
+  "__pycache__",
+  ".venv"
+]
+pythonVersion = "3.12"
+typeCheckingMode = "basic"
+reportMissingImports = true
+reportMissingTypeStubs = false
+reportUnusedImport = true
+reportUnusedClass = true
+reportUnusedFunction = true
+reportDuplicateImport = true
+reportConstantRedefinition = false
+reportUnknownParameterType = false
+reportUnknownVariableType = false
+reportUnknownMemberType = false
+reportUnknownArgumentType = false

@@ -32,20 +32,13 @@ functions will raise an informative ``ImportError``.
 
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 
 import numpy as np
+from scipy.optimize import linprog  # type: ignore[import-untyped]
 
 # Constants
 EXPECTED_MATRIX_DIMENSIONS = 2
-
-try:
-    # SciPy is used for linear programming; HiGHS is fast and reliable.
-    from scipy.optimize import linprog  # type: ignore
-except Exception:  # pragma: no cover
-    linprog = None
 
 
 @dataclass
@@ -66,6 +59,7 @@ class CalibrationResult:
         Status code from the linear programme (0 indicates success).
     message : str
         Solver termination message for diagnostics.
+
     """
 
     w: np.ndarray
@@ -76,7 +70,7 @@ class CalibrationResult:
 
 
 def _validate_inputs(
-    A: np.ndarray, b: np.ndarray, w0: np.ndarray
+    A: np.ndarray, b: np.ndarray, w0: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Validate and coerce input arrays to ensure they have compatible shapes.
 
@@ -98,17 +92,21 @@ def _validate_inputs(
     ------
     ValueError
         If shapes are incompatible.
+
     """
     A = np.asarray(A, dtype=float)
     b = np.asarray(b, dtype=float)
     w0 = np.asarray(w0, dtype=float)
     if A.ndim != EXPECTED_MATRIX_DIMENSIONS:
-        raise ValueError(f"A must be two-dimensional, got shape {A.shape}")
+        msg = f"A must be two-dimensional, got shape {A.shape}"
+        raise ValueError(msg)
     m, n = A.shape
     if b.shape != (m,):
-        raise ValueError(f"b must be of shape {(m,)}, got {b.shape}")
+        msg = f"b must be of shape {(m,)}, got {b.shape}"
+        raise ValueError(msg)
     if w0.shape != (n,):
-        raise ValueError(f"w0 must be of shape {(n,)}, got {w0.shape}")
+        msg = f"w0 must be of shape {(n,)}, got {w0.shape}"
+        raise ValueError(msg)
     return A, b, w0
 
 
@@ -138,11 +136,8 @@ def _solve_lp(
     -------
     res : OptimizeResult
         Result from the solver.
+
     """
-    if linprog is None:
-        raise ImportError(
-            "SciPy is required to solve the linear programmes. Install scipy>=1.6 to use this function."
-        )
     res = linprog(
         c=c,
         A_ub=A_ub,
@@ -197,6 +192,7 @@ def leximin_residual(
     If the problem is infeasible (e.g., because the bounds preclude any
     solution), the returned status will be nonzero and the weights may not be
     meaningful. Check ``status`` and ``message`` on the result.
+
     """
     A, b, w0 = _validate_inputs(A, b, w0)
     m, n = A.shape
@@ -231,7 +227,7 @@ def leximin_residual(
     w = x[:n]
     epsilon = x[-1]
     return CalibrationResult(
-        w=w, epsilon=epsilon, t=None, status=res.status, message=res.message
+        w=w, epsilon=epsilon, t=None, status=res.status, message=res.message,
     )
 
 
@@ -255,6 +251,7 @@ def _setup_weight_fair_constraints(
         Inequality constraint right hand side.
     bounds : list
         Variable bounds.
+
     """
     m, n = A.shape
 
@@ -350,6 +347,7 @@ def leximin_weight_fair(
         :class:`CalibrationResult` containing the final weights and both the
         residual and weight fairness optima. If ``return_stages`` is
         ``True``, a tuple ``(stage1_result, stage2_result)``.
+
     """
     stage1 = leximin_residual(A, b, w0, min_ratio=min_ratio, max_ratio=max_ratio)
     # If the residual stage failed, propagate the failure
@@ -369,7 +367,7 @@ def leximin_weight_fair(
 
     # Set up constraints using helper function
     A_ub, b_ub, bounds = _setup_weight_fair_constraints(
-        A, b, w0, stage1.epsilon, min_ratio=min_ratio, max_ratio=max_ratio, slack=slack
+        A, b, w0, stage1.epsilon, min_ratio=min_ratio, max_ratio=max_ratio, slack=slack,
     )
 
     res = _solve_lp(c, A_ub, b_ub, bounds)
@@ -389,7 +387,7 @@ def leximin_weight_fair(
     w = x[:n]
     t_opt = x[-1]
     stage2 = CalibrationResult(
-        w=w, epsilon=stage1.epsilon, t=t_opt, status=res.status, message=res.message
+        w=w, epsilon=stage1.epsilon, t=t_opt, status=res.status, message=res.message,
     )
     if return_stages:
         return stage1, stage2

@@ -33,7 +33,4 @@ from .calibration import CalibrationResult, leximin_residual, leximin_weight_fai
 from .metrics import evaluate_solution
 
 # Expose the package version at runtime
-try:  # pragma: no cover - metadata may not be present in editable installs
-    __version__ = version("fairlex")
-except Exception:
-    __version__ = "0.0.0"
+__version__ = version("fairlex")

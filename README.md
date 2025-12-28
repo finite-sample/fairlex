@@ -3,7 +3,7 @@ fairlex: leximin calibration
 
 [![PyPI version](https://img.shields.io/pypi/v/fairlex.svg)](https://pypi.org/project/fairlex/)
 [![PyPI Downloads](https://static.pepy.tech/badge/fairlex)](https://pepy.tech/projects/fairlex)
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/fairlex)](https://pypi.org/project/fairlex/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 
@@ -37,8 +37,8 @@ principal calibration strategies are:
 Installation
 ------------
 
-``fairlex`` requires Python 3.8+ and depends on ``numpy`` and
-``scipy``. You can install it via pip once uploaded to PyPI:
+``fairlex`` requires Python 3.12+ and depends on ``numpy>=1.26`` and
+``scipy>=1.11``. You can install it via pip once uploaded to PyPI:
 
 ```bash
 pip install fairlex

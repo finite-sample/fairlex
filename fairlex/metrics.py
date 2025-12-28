@@ -23,8 +23,6 @@ sample size and design effect alone.
 
 """
 
-from __future__ import annotations
-
 import numpy as np
 
 __all__ = [
@@ -52,6 +50,7 @@ def effective_sample_size(weights: np.ndarray) -> float:
     -------
     float
         Effective sample size. Returns ``np.nan`` if the denominator is zero.
+
     """
     w = np.asarray(weights, dtype=float)
     numer = np.sum(w)
@@ -78,6 +77,7 @@ def design_effect(weights: np.ndarray) -> float:
     float
         Design effect. Returns ``np.nan`` if the effective sample size is
         undefined.
+
     """
     w = np.asarray(weights, dtype=float)
     ess = effective_sample_size(w)
@@ -87,9 +87,13 @@ def design_effect(weights: np.ndarray) -> float:
 
 
 def _compute_residual_metrics(
-    A: np.ndarray, b: np.ndarray, w: np.ndarray
+    A: np.ndarray, b: np.ndarray, w: np.ndarray,
 ) -> dict[str, float]:
-    """Compute residual-based metrics."""
+    """Compute residual-based metrics.
+
+    Returns:
+        Dictionary containing residual metrics.
+    """
     resid = A @ w - b
     abs_resid = np.abs(resid)
     return {
@@ -101,9 +105,13 @@ def _compute_residual_metrics(
 
 
 def _compute_weight_metrics(
-    w: np.ndarray, quantiles: tuple[float, ...]
+    w: np.ndarray, quantiles: tuple[float, ...],
 ) -> dict[str, float]:
-    """Compute weight distribution metrics."""
+    """Compute weight distribution metrics.
+
+    Returns:
+        Dictionary containing weight distribution metrics.
+    """
     # Calculate all quantiles plus min/max
     q_vals = np.quantile(w, (*quantiles, 0.0, 1.0))
     q_map = dict(zip((*quantiles, 0.0, 1.0), q_vals, strict=False))
@@ -116,7 +124,7 @@ def _compute_weight_metrics(
         "weight_min": float(q_map[0.0]),
         "weight_p99": float(q_map.get(0.99, q_map[sorted_q[0]])),
         "weight_p95": float(
-            q_map.get(0.95, q_map[sorted_q[min(1, len(sorted_q) - 1)]])
+            q_map.get(0.95, q_map[sorted_q[min(1, len(sorted_q) - 1)]]),
         ),
         "weight_median": float(q_map.get(0.5, np.median(w))),
         "ESS": float(effective_sample_size(w)),
@@ -125,9 +133,13 @@ def _compute_weight_metrics(
 
 
 def _compute_relative_deviations(
-    w: np.ndarray, base_weights: np.ndarray
+    w: np.ndarray, base_weights: np.ndarray,
 ) -> dict[str, float]:
-    """Compute relative deviation metrics."""
+    """Compute relative deviation metrics.
+
+    Returns:
+        Dictionary containing relative deviation metrics.
+    """
     bw = np.asarray(base_weights, dtype=float)
     rel_dev = np.abs(w - bw) / np.where(bw == 0, 1.0, np.abs(bw))
     return {
@@ -169,6 +181,7 @@ def evaluate_solution(
     dict
         A dictionary containing residual and weight diagnostics. See module
         docstring for the key descriptions.
+
     """
     w = np.asarray(w, dtype=float)
     A = np.asarray(A, dtype=float)

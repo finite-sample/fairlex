@@ -1,6 +1,6 @@
 [build-system]
-requires = ["hatchling>=1.21.1"]
-build-backend = "hatchling.build"
+requires = ["uv_build"]
+build-backend = "uv_build"
 
 [project]
 name = "fairlex"
@@ -58,8 +58,8 @@ docs = [
 "Repository" = "https://github.com/finite-sample/fairlex"
 "Bug Tracker" = "https://github.com/finite-sample/fairlex/issues"
 
-[tool.hatch.build.targets.wheel]
-packages = ["fairlex"]
+[tool.uv.build-backend]
+module-root = "."
 
 [tool.ruff]
 line-length = 88

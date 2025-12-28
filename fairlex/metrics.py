@@ -87,7 +87,9 @@ def design_effect(weights: np.ndarray) -> float:
 
 
 def _compute_residual_metrics(
-    A: np.ndarray, b: np.ndarray, w: np.ndarray,
+    A: np.ndarray,
+    b: np.ndarray,
+    w: np.ndarray,
 ) -> dict[str, float]:
     """Compute residual-based metrics.
 
@@ -105,7 +107,8 @@ def _compute_residual_metrics(
 
 
 def _compute_weight_metrics(
-    w: np.ndarray, quantiles: tuple[float, ...],
+    w: np.ndarray,
+    quantiles: tuple[float, ...],
 ) -> dict[str, float]:
     """Compute weight distribution metrics.
 
@@ -133,7 +136,8 @@ def _compute_weight_metrics(
 
 
 def _compute_relative_deviations(
-    w: np.ndarray, base_weights: np.ndarray,
+    w: np.ndarray,
+    base_weights: np.ndarray,
 ) -> dict[str, float]:
     """Compute relative deviation metrics.
 

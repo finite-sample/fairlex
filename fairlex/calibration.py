@@ -70,7 +70,9 @@ class CalibrationResult:
 
 
 def _validate_inputs(
-    A: np.ndarray, b: np.ndarray, w0: np.ndarray,
+    A: np.ndarray,
+    b: np.ndarray,
+    w0: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Validate and coerce input arrays to ensure they have compatible shapes.
 
@@ -227,7 +229,11 @@ def leximin_residual(
     w = x[:n]
     epsilon = x[-1]
     return CalibrationResult(
-        w=w, epsilon=epsilon, t=None, status=res.status, message=res.message,
+        w=w,
+        epsilon=epsilon,
+        t=None,
+        status=res.status,
+        message=res.message,
     )
 
 
@@ -367,7 +373,13 @@ def leximin_weight_fair(
 
     # Set up constraints using helper function
     A_ub, b_ub, bounds = _setup_weight_fair_constraints(
-        A, b, w0, stage1.epsilon, min_ratio=min_ratio, max_ratio=max_ratio, slack=slack,
+        A,
+        b,
+        w0,
+        stage1.epsilon,
+        min_ratio=min_ratio,
+        max_ratio=max_ratio,
+        slack=slack,
     )
 
     res = _solve_lp(c, A_ub, b_ub, bounds)
@@ -387,7 +399,11 @@ def leximin_weight_fair(
     w = x[:n]
     t_opt = x[-1]
     stage2 = CalibrationResult(
-        w=w, epsilon=stage1.epsilon, t=t_opt, status=res.status, message=res.message,
+        w=w,
+        epsilon=stage1.epsilon,
+        t=t_opt,
+        status=res.status,
+        message=res.message,
     )
     if return_stages:
         return stage1, stage2

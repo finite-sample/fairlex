@@ -18,6 +18,8 @@ jobs:
   ci:
     uses: gojiplus/py-canon/.github/workflows/reusable-ci.yml@v1
     with:
+      # The reusable default is ["3.11", "3.14"]; this package is >=3.12.
+      python-versions: '["3.12", "3.13", "3.14"]'
       wheel-import: fairlex
       coverage-floor: 94
       run-preen: true

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["uv_build"]
+requires = ["uv_build>=0.12.5,<0.13"]
 build-backend = "uv_build"
 
 [project]
@@ -9,7 +9,8 @@ description = "Leximin calibration for survey weights"
 authors = [
   { name = "Gaurav Sood", email = "contact@gsood.com" },
 ]
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -18,7 +19,6 @@ dependencies = [
 ]
 classifiers = [
   "Development Status :: 3 - Alpha",
-  "License :: OSI Approved :: MIT License",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
@@ -30,129 +30,89 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Information Analysis",
 ]
 
-[dependency-groups]
-dev = [
-  "pytest>=7.0",
-  "pytest-cov>=4.0",
-  "ruff>=0.7.0",
-  "pre-commit>=3.0",
-  "pydoclint>=0.3.0",
-  "pyright>=1.1.0",
-  "deptry>=0.20.0"
-]
-test = [
-  "pytest>=7.0",
-  "pytest-cov>=4.0"
-]
-docs = [
-  "sphinx>=7.0",
-  "furo>=2024.1.29",
-  "sphinx-autodoc-typehints>=1.25",
-  "nbsphinx>=0.9.0",
-  "ipython>=8.0.0",
-  "jupyter>=1.0.0",
-  "pandas>=2.0.0",
-  "pandoc>=2.0",
-]
-
 [project.urls]
-"Homepage" = "https://github.com/finite-sample/fairlex"
-"Repository" = "https://github.com/finite-sample/fairlex"
+Homepage = "https://github.com/finite-sample/fairlex"
+Documentation = "https://finite-sample.github.io/fairlex/"
+Repository = "https://github.com/finite-sample/fairlex"
 "Bug Tracker" = "https://github.com/finite-sample/fairlex/issues"
 
 [tool.uv.build-backend]
-module-root = "."
+module-name = "fairlex"
+
+[dependency-groups]
+dev = [
+  "ruff>=0.14",
+  "pyright>=1.1.390",
+  "pre-commit>=4",
+  { include-group = "test" },
+]
+test = ["pytest>=8", "pytest-cov>=6"]
+docs = [
+  "sphinx>=8",
+  "py-canon @ git+https://github.com/gojiplus/py-canon@v1",
+  "furo",
+  "myst-parser",
+  "myst-nb>=1.2",
+  "sphinx-copybutton",
+  "pandas>=2.0.0",
+]
 
 [tool.ruff]
 line-length = 88
 target-version = "py312"
-preview = true
-exclude = [
-  ".git",
-  "__pycache__",
-  "build",
-  "dist",
-  ".venv",
-  "docs"
-]
 
 [tool.ruff.lint]
-select = [
-  "E",   # pycodestyle errors
-  "W",   # pycodestyle warnings
-  "F",   # pyflakes
-  "I",   # import sorting
-  "B",   # bugbear
-  "C4",  # comprehensions
-  "UP",  # pyupgrade
-  "PL",  # pylint
-  "PIE", # pie
-  "T20", # print detection
-  "SIM", # simplify
-  "LOG", # logging
-  "RUF", # ruff-specific
-]
-ignore = [
-  "E501",   # line too long (handled by formatter)
-  "B008",   # do not perform function calls in argument defaults
-  "T201",   # print found
-  "PLR0913", # too many arguments to function call
-  "UP037",  # remove quotes from type annotation (conflicts with forward refs)
-]
+external = ["DOC"]
+select = ["E", "W", "F", "I", "B", "C4", "UP", "N", "D", "S", "SIM", "T20", "PT", "RUF", "PTH", "RET", "PIE", "FURB", "PERF", "DTZ", "LOG", "G", "TC", "FLY", "RSE", "SLOT", "FA", "A", "EXE", "ICN", "PGH", "PLE", "ARG", "SLF", "PL"]
+# D203/D213: the google convention the fleet standard picks. W191/D206/D300:
+# ruff's own docs list these as always incompatible with `ruff format`, which
+# the standard also runs.
+ignore = ["D203", "D213", "W191", "D206", "D300"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.pep8-naming]
+# `A` is the membership matrix throughout the calibration literature this
+# package implements, and `A_ub` is scipy.optimize.linprog's own parameter
+# name. Lowercasing either would make the code harder to check against the
+# maths, so the two names are exempt rather than the N rules being dropped.
+extend-ignore-names = ["A", "A_ub"]
+
+[tool.ruff.lint.pylint]
+# The two public entry points take the LP's data (A, b, w0) plus its bounds
+# and slack; splitting them into a config object would only move the argument
+# count somewhere else.
+max-args = 8
 
 [tool.ruff.lint.per-file-ignores]
-"__init__.py" = ["F401"]
-"tests/*" = ["T201", "PLR2004"]
-"docs/examples/*" = ["T201"]
+# Unused fixture arguments and private-member access are how tests are written.
+# PLR2004: assertions compare against literal expected values by design.
+"tests/**" = ["S101", "D", "ARG", "SLF", "PLR2004"]
+"docs/**" = ["D"]
+# T201: printing is how a tutorial notebook produces its rendered output.
+"docs/**/*.ipynb" = ["D", "T201"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["fairlex"]
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = ["test_*.py"]
-addopts = "--cov=fairlex --cov-report=html --cov-report=term-missing"
+[tool.pyright]
+include = ["src"]
+typeCheckingMode = "standard"
+pythonVersion = "3.12"
 
 [tool.pydoclint]
 style = "google"
-exclude = [
-  "tests/*",
-  "docs/*",
-  "build/*",
-  "dist/*",
-  "__pycache__/*"
-]
-check-return-types = true
-check-yield-types = true
-arg-type-hints-in-docstring = true
-arg-type-hints-in-signature = true
+arg-type-hints-in-docstring = false
+check-return-types = false
+check-class-attributes = false
 allow-init-docstring = true
+exclude = '\.venv|tests|docs'
 
-[tool.pyright]
-include = ["fairlex"]
-exclude = [
-  "tests",
-  "docs", 
-  "examples",
-  "build",
-  "dist",
-  "__pycache__",
-  ".venv"
-]
-pythonVersion = "3.12"
-typeCheckingMode = "basic"
-reportMissingImports = true
-reportMissingTypeStubs = false
-reportUnusedImport = true
-reportUnusedClass = true
-reportUnusedFunction = true
-reportDuplicateImport = true
-reportConstantRedefinition = false
-reportUnknownParameterType = false
-reportUnknownVariableType = false
-reportUnknownMemberType = false
-reportUnknownArgumentType = false
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
-[tool.deptry]
-extend_exclude = ["tests", "docs", "examples"]
-per_rule_ignores = { DEP002 = ["pytest", "pytest-cov", "pre-commit", "pydoclint", "pyright", "sphinx", "furo", "sphinx-autodoc-typehints", "nbsphinx", "ipython", "jupyter", "pandoc"] }
+[tool.coverage.run]
+source = ["src"]
+
+[tool.preen]

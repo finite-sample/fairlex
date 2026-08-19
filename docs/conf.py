@@ -1,111 +1,37 @@
-"""Configuration file for the Sphinx documentation builder."""
+"""Sphinx configuration — fleet standard via py-canon."""
 
-import sys
-from importlib.metadata import metadata
-from pathlib import Path
+from py_canon.sphinx import configure
 
-# Add the project root to the Python path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# `configure` injects its settings into this module's namespace, so the two it
+# amends below are read back through `globals()` rather than by name: to a
+# static reader they are undefined until the call has run.
+_ns = globals()
+configure(_ns)
 
-# -- Project information -----------------------------------------------------
+# myst_nb renders docs/examples/*.ipynb. It supersedes myst_parser — it loads
+# and extends it — so registering both raises "extension already registered".
+# Preferred to nbsphinx, which shells out to a pandoc binary that the fleet's
+# reusable docs workflow does not install.
+_ns["extensions"] = [e for e in _ns["extensions"] if e != "myst_parser"] + ["myst_nb"]
 
-# Get package metadata
-pkg_metadata = metadata("fairlex")
+# Without this, napoleon turns `CalibrationResult`'s Attributes section into
+# py:attribute descriptions that collide with the ones autodoc generates from
+# the dataclass fields, and `sphinx-build -W` fails on the duplicates.
+napoleon_use_ivar = True
 
-project = pkg_metadata["Name"]
-# Extract author from Author-email field
-author_email = pkg_metadata["Author-email"]
-# Parse "Name <email>" format
-author = author_email.split("<")[0].strip()
-copyright = f"2024, {author}"
+# The notebook is committed without outputs, so it has to run at build time.
+nb_execution_mode = "cache"
+nb_execution_timeout = 600
+nb_execution_raise_on_error = True
 
-# The full version, including alpha/beta/rc tags
-release = pkg_metadata["Version"]
-version = release
+_ns["intersphinx_mapping"] |= {
+    "numpy": ("https://numpy.org/doc/stable/", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy/", None),
+    "pandas": ("https://pandas.pydata.org/docs/", None),
+}
 
-# -- General configuration ---------------------------------------------------
-
-extensions = [
-    "sphinx.ext.autodoc",
-    "sphinx.ext.autosummary",
-    "sphinx.ext.napoleon",
-    "sphinx.ext.viewcode",
-    "sphinx.ext.intersphinx",
-    "sphinx_autodoc_typehints",
-    "nbsphinx",
-]
-
-# Add any paths that contain templates here, relative to this directory.
-templates_path = ["_templates"]
-
-# List of patterns, relative to source directory, that match files and
-# directories to ignore when looking for source files.
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
-
-# -- Options for HTML output -------------------------------------------------
-
-html_theme = "furo"
-html_title = f"{project} {release}"
 html_theme_options = {
     "source_repository": "https://github.com/finite-sample/fairlex",
     "source_branch": "main",
     "source_directory": "docs/",
 }
-
-# Add any paths that contain custom static files (such as style sheets) here,
-# relative to this directory. They are copied after the builtin static files,
-# so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ["_static"]
-
-# -- Extension configuration -------------------------------------------------
-
-# Napoleon settings
-napoleon_google_docstring = True
-napoleon_numpy_docstring = True
-napoleon_include_init_with_doc = False
-napoleon_include_private_with_doc = False
-
-# Autodoc settings
-autodoc_default_options = {
-    "members": True,
-    "member-order": "bysource",
-    "special-members": "__init__",
-    "undoc-members": True,
-    "exclude-members": "__weakref__",
-}
-
-# Autosummary settings
-autosummary_generate = True
-
-# Intersphinx mapping
-intersphinx_mapping = {
-    "python": ("https://docs.python.org/3", None),
-    "numpy": ("https://numpy.org/doc/stable/", None),
-    "scipy": ("https://docs.scipy.org/doc/scipy/", None),
-}
-
-# Type hints configuration
-typehints_fully_qualified = False
-always_document_param_types = True
-typehints_document_rtype = True
-typehints_use_rtype = True
-
-# -- nbsphinx configuration ------------------------------------------------
-
-# Execute notebooks during build
-nbsphinx_execute = "always"
-
-# Allow errors during execution for debugging
-nbsphinx_allow_errors = True
-
-# Use Python 3 kernel
-nbsphinx_kernel_name = "python3"
-
-# 10-minute timeout for notebook execution
-nbsphinx_timeout = 600
-
-# Configure figure formats and DPI for better output
-nbsphinx_execute_arguments = [
-    "--InlineBackend.figure_formats={'svg', 'pdf'}",
-    "--InlineBackend.rc={'figure.dpi': 96}",
-]

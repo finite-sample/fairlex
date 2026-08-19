@@ -28,7 +28,7 @@ def test_wrong_w0_shape():
         leximin_residual(A, b, w0)
 
 
-def test_1d_array_A():
+def test_1d_membership_matrix():
     """Test that 1D array for A raises ValueError."""
     A = np.array([1, 0])  # 1D
     b = np.array([1, 2])
@@ -56,11 +56,13 @@ def test_single_variable_single_constraint():
 
 def test_exactly_feasible_problem():
     """Test problem with exact solution."""
-    A = np.array([
-        [1, 0],  # x1
-        [0, 1],  # x2
-        [1, 1],  # x1 + x2
-    ])
+    A = np.array(
+        [
+            [1, 0],  # x1
+            [0, 1],  # x2
+            [1, 1],  # x1 + x2
+        ]
+    )
     b = np.array([3, 2, 5])
     w0 = np.array([1, 1])
 
@@ -74,10 +76,12 @@ def test_exactly_feasible_problem():
 
 def test_infeasible_problem_leximin():
     """Test problem with conflicting constraints."""
-    A = np.array([
-        [1, 0],  # x1
-        [1, 0],  # x1 (same constraint, different target)
-    ])
+    A = np.array(
+        [
+            [1, 0],  # x1
+            [1, 0],  # x1 (same constraint, different target)
+        ]
+    )
     b = np.array([3, 4])  # impossible: x1 cannot be both 3 and 4
     w0 = np.array([1, 1])
 
@@ -137,11 +141,13 @@ def test_negative_base_weights():
 
 def test_weight_fair_basic():
     """Test basic weight-fair leximin functionality."""
-    A = np.array([
-        [1, 0],
-        [0, 1],
-        [1, 1],
-    ])
+    A = np.array(
+        [
+            [1, 0],
+            [0, 1],
+            [1, 1],
+        ]
+    )
     b = np.array([3, 2, 5])
     w0 = np.array([1, 1])
 

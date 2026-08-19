@@ -41,23 +41,19 @@ def effective_sample_size(weights: np.ndarray) -> float:
 
         \mathrm{ESS} = \frac{\left(\sum_i w_i\right)^2}{\sum_i w_i^2}.
 
-    Parameters
-    ----------
-    weights : ndarray
-        Array of weights.
+    Args:
+        weights: Array of weights.
 
-    Returns
-    -------
-    float
+    Returns:
         Effective sample size. Returns ``np.nan`` if the denominator is zero.
 
     """
     w = np.asarray(weights, dtype=float)
-    numer = np.sum(w)
+    numerator = np.sum(w)
     denom = np.sum(w * w)
     if denom == 0:
         return np.nan
-    return float((numer * numer) / denom)
+    return float((numerator * numerator) / denom)
 
 
 def design_effect(weights: np.ndarray) -> float:
@@ -67,14 +63,10 @@ def design_effect(weights: np.ndarray) -> float:
     observations. It quantifies the inflation in variance attributable to
     unequal weights.
 
-    Parameters
-    ----------
-    weights : ndarray
-        Array of weights.
+    Args:
+        weights: Array of weights.
 
-    Returns
-    -------
-    float
+    Returns:
         Design effect. Returns ``np.nan`` if the effective sample size is
         undefined.
 
@@ -93,8 +85,14 @@ def _compute_residual_metrics(
 ) -> dict[str, float]:
     """Compute residual-based metrics.
 
+    Args:
+        A: Membership matrix of shape ``(m, n)``.
+        b: Target totals of shape ``(m,)``.
+        w: Calibrated weights of shape ``(n,)``.
+
     Returns:
         Dictionary containing residual metrics.
+
     """
     resid = A @ w - b
     abs_resid = np.abs(resid)
@@ -112,8 +110,13 @@ def _compute_weight_metrics(
 ) -> dict[str, float]:
     """Compute weight distribution metrics.
 
+    Args:
+        w: Calibrated weights of shape ``(n,)``.
+        quantiles: Quantiles to compute on the weight distribution.
+
     Returns:
         Dictionary containing weight distribution metrics.
+
     """
     # Calculate all quantiles plus min/max
     q_vals = np.quantile(w, (*quantiles, 0.0, 1.0))
@@ -141,8 +144,13 @@ def _compute_relative_deviations(
 ) -> dict[str, float]:
     """Compute relative deviation metrics.
 
+    Args:
+        w: Calibrated weights of shape ``(n,)``.
+        base_weights: Original weights the deviations are measured against.
+
     Returns:
         Dictionary containing relative deviation metrics.
+
     """
     bw = np.asarray(base_weights, dtype=float)
     rel_dev = np.abs(w - bw) / np.where(bw == 0, 1.0, np.abs(bw))
@@ -163,26 +171,18 @@ def evaluate_solution(
 ) -> dict[str, float]:
     """Compute summary diagnostics for a calibration solution.
 
-    Parameters
-    ----------
-    A : ndarray
-        Membership matrix of shape ``(m, n)`` used in the calibration.
-    b : ndarray
-        Target totals of shape ``(m,)``.
-    w : ndarray
-        Calibrated weights of shape ``(n,)``.
-    quantiles : tuple of float, optional
-        Quantiles to compute on the weight distribution. Defaults to
-        ``(0.99, 0.95, 0.5)``, corresponding to the 99th percentile, 95th
-        percentile and median.
-    base_weights : ndarray, optional
-        Original/base weights. If provided, relative deviations will be
-        computed and returned under the keys ``max_rel_dev``, ``p95_rel_dev``,
-        and ``median_rel_dev``.
+    Args:
+        A: Membership matrix of shape ``(m, n)`` used in the calibration.
+        b: Target totals of shape ``(m,)``.
+        w: Calibrated weights of shape ``(n,)``.
+        quantiles: Quantiles to compute on the weight distribution. Defaults
+            to ``(0.99, 0.95, 0.5)``, corresponding to the 99th percentile,
+            95th percentile and median.
+        base_weights: Original/base weights. If provided, relative deviations
+            will be computed and returned under the keys ``max_rel_dev``,
+            ``p95_rel_dev``, and ``median_rel_dev``.
 
-    Returns
-    -------
-    dict
+    Returns:
         A dictionary containing residual and weight diagnostics. See module
         docstring for the key descriptions.
 

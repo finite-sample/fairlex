@@ -1,46 +1,43 @@
-.PHONY: help clean install test test-cov lint format type-check docs docs-serve build upload dev-install
+.PHONY: help clean dev test test-cov lint format type-check docs build ci
 
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 clean: ## Clean build artifacts
-	rm -rf build/
-	rm -rf dist/
-	rm -rf *.egg-info/
-	rm -rf .pytest_cache/
-	rm -rf .coverage
-	rm -rf htmlcov/
-	rm -rf docs/build/
-	find . -type d -name __pycache__ -delete
-	find . -type f -name "*.pyc" -delete
+	rm -rf build/ dist/ *.egg-info/ .pytest_cache/ .ruff_cache/ .coverage htmlcov/ _site/ _doctest/ docs/_build/
+	find . -type d -name __pycache__ -exec rm -rf {} +
 
-install: ## Install package
-	uv pip install -e .
-
-dev-install: ## Install package with development dependencies
-	uv sync --dev
-	pre-commit install
+dev: ## Install the package with every dependency group
+	uv sync --all-groups
+	uv run pre-commit install
 
 test: ## Run tests
-	pytest
+	uv run pytest
 
 test-cov: ## Run tests with coverage
-	pytest --cov=fairlex --cov-report=html --cov-report=term
+	uv run pytest --cov --cov-report=term-missing
 
-lint: ## Run linter
-	ruff check .
+lint: ## Run linter and formatter checks
+	uv run ruff check .
+	uv run ruff format --check .
 
-format: ## Format code
-	ruff format .
-	ruff check --fix .
+format: ## Format code and apply safe lint fixes
+	uv run ruff format .
+	uv run ruff check --fix .
 
 type-check: ## Run type checker
-	mypy fairlex/
+	uv run pyright
+
+docs: ## Build the documentation the way CI does
+	uv run sphinx-build -W -b html docs _site
 
 build: ## Build package
 	uv build
 
-upload: ## Upload to PyPI
-	uv publish
-
-ci: lint type-check test ## Run CI checks
+ci: ## Run the conformance checks CI runs
+	uv run ruff check .
+	uv run ruff format --check .
+	uv run pyright
+	uvx --from pydoclint==0.9.1 pydoclint src/
+	uvx preen check --strict
+	uv run pytest --cov --cov-report=term-missing --cov-fail-under=94

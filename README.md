@@ -5,6 +5,7 @@ fairlex: leximin calibration
 [![PyPI Downloads](https://static.pepy.tech/badge/fairlex)](https://pepy.tech/projects/fairlex)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/fairlex)](https://pypi.org/project/fairlex/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Docs](https://img.shields.io/badge/docs-github.io-blue)](https://finite-sample.github.io/fairlex/)
 
 
 ``fairlex`` implements risk-averse calibration of survey weights using leximin objectives. 
@@ -44,13 +45,17 @@ Installation
 pip install fairlex
 ```
 
-For development, clone this repository and install the dependencies:
+For development, clone this repository and sync the environment with
+[uv](https://docs.astral.sh/uv/):
 
 ```bash
 git clone https://github.com/finite-sample/fairlex.git
 cd fairlex
-pip install -e .[dev]
+uv sync --all-groups
 ```
+
+`make help` lists the available development targets; `make ci` runs the same
+checks CI does.
 
 Usage
 -----
@@ -66,18 +71,21 @@ import numpy as np
 from fairlex import leximin_weight_fair, evaluate_solution
 
 # Example data: two margins (sex and age) plus total
-A = np.array([
-    # sex: female
-    [1, 0, 1, 0, 1],
-    # sex: male
-    [0, 1, 0, 1, 0],
-    # age: young
-    [1, 1, 0, 0, 1],
-    # age: old
-    [0, 0, 1, 1, 0],
-    # total
-    [1, 1, 1, 1, 1],
-], dtype=float)
+A = np.array(
+    [
+        # sex: female
+        [1, 0, 1, 0, 1],
+        # sex: male
+        [0, 1, 0, 1, 0],
+        # age: young
+        [1, 1, 0, 0, 1],
+        # age: old
+        [0, 0, 1, 1, 0],
+        # total
+        [1, 1, 1, 1, 1],
+    ],
+    dtype=float,
+)
 target = np.array([6, 4, 6, 4, 10], dtype=float)  # Feasible targets
 w0 = np.array([1, 1, 1, 1, 1], dtype=float)
 

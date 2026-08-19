@@ -35,7 +35,7 @@ functions will raise an informative ``ImportError``.
 from dataclasses import dataclass
 
 import numpy as np
-from scipy.optimize import linprog  # type: ignore[import-untyped]
+from scipy.optimize import OptimizeResult, linprog
 
 # Constants
 EXPECTED_MATRIX_DIMENSIONS = 2
@@ -45,20 +45,14 @@ EXPECTED_MATRIX_DIMENSIONS = 2
 class CalibrationResult:
     """Structured result from a calibration call.
 
-    Attributes
-    ----------
-    w : ndarray
-        Calibrated weights of shape ``(n,)``.
-    epsilon : float
-        The worst absolute residual achieved in the residual minimisation
-        problem. Only meaningful for ``leximin_residual``.
-    t : Optional[float]
-        The worst relative weight change achieved in the weight fairness
-        problem. ``None`` if only the residual stage is performed.
-    status : int
-        Status code from the linear programme (0 indicates success).
-    message : str
-        Solver termination message for diagnostics.
+    Attributes:
+        w: Calibrated weights of shape ``(n,)``.
+        epsilon: The worst absolute residual achieved in the residual
+            minimisation problem. Only meaningful for ``leximin_residual``.
+        t: The worst relative weight change achieved in the weight fairness
+            problem. ``None`` if only the residual stage is performed.
+        status: Status code from the linear programme (0 indicates success).
+        message: Solver termination message for diagnostics.
 
     """
 
@@ -76,24 +70,16 @@ def _validate_inputs(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Validate and coerce input arrays to ensure they have compatible shapes.
 
-    Parameters
-    ----------
-    A : array-like
-        Membership matrix of shape ``(m, n)``.
-    b : array-like
-        Target totals of shape ``(m,)``.
-    w0 : array-like
-        Base weights of shape ``(n,)``.
+    Args:
+        A: Membership matrix of shape ``(m, n)``.
+        b: Target totals of shape ``(m,)``.
+        w0: Base weights of shape ``(n,)``.
 
-    Returns
-    -------
-    (A, b, w0) : tuple of ndarrays
-        Validated and dtype-coerced versions of the inputs.
+    Returns:
+        Validated and dtype-coerced ``(A, b, w0)``.
 
-    Raises
-    ------
-    ValueError
-        If shapes are incompatible.
+    Raises:
+        ValueError: If shapes are incompatible.
 
     """
     A = np.asarray(A, dtype=float)
@@ -117,37 +103,29 @@ def _solve_lp(
     A_ub: np.ndarray,
     b_ub: np.ndarray,
     bounds: list[tuple[float | None, float | None]],
-) -> "scipy.optimize.OptimizeResult":  # type: ignore[name-defined]  # noqa: F821
+) -> OptimizeResult:
     """Solve a linear programming problem using SciPy HiGHS.
 
     This helper centralises the call to ``scipy.optimize.linprog`` and
     provides a clear error message if SciPy is not installed.
 
-    Parameters
-    ----------
-    c : ndarray
-        Objective coefficients.
-    A_ub : ndarray
-        Inequality constraint matrix.
-    b_ub : ndarray
-        Inequality constraint right hand side.
-    bounds : sequence of (float, float)
-        Variable bounds.
+    Args:
+        c: Objective coefficients.
+        A_ub: Inequality constraint matrix.
+        b_ub: Inequality constraint right hand side.
+        bounds: Variable bounds.
 
-    Returns
-    -------
-    res : OptimizeResult
-        Result from the solver.
+    Returns:
+        The solver's ``OptimizeResult``.
 
     """
-    res = linprog(
+    return linprog(
         c=c,
         A_ub=A_ub,
         b_ub=b_ub,
         bounds=bounds,
         method="highs",
     )
-    return res
 
 
 def leximin_residual(
@@ -170,30 +148,21 @@ def leximin_residual(
         \quad \text{and}\quad
         w_i \in [w_{0,i}\,\text{min\_ratio},\, w_{0,i}\,\text{max\_ratio}].
 
-    Parameters
-    ----------
-    A : ndarray
-        Membership matrix of shape ``(m, n)``.
-    b : ndarray
-        Target totals of shape ``(m,)``.
-    w0 : ndarray
-        Base weights of shape ``(n,)``.
-    min_ratio : float, optional
-        Lower bound on weights relative to ``w0``. Defaults to ``0.1``.
-    max_ratio : float, optional
-        Upper bound on weights relative to ``w0``. Defaults to ``10.0``.
+    Args:
+        A: Membership matrix of shape ``(m, n)``.
+        b: Target totals of shape ``(m,)``.
+        w0: Base weights of shape ``(n,)``.
+        min_ratio: Lower bound on weights relative to ``w0``.
+        max_ratio: Upper bound on weights relative to ``w0``.
 
-    Returns
-    -------
-    CalibrationResult
-        Structured result containing the weights, the optimum ``epsilon``, and
-        solver diagnostics.
+    Returns:
+        Structured result containing the weights, the optimum ``epsilon``,
+        and solver diagnostics.
 
-    Notes
-    -----
-    If the problem is infeasible (e.g., because the bounds preclude any
-    solution), the returned status will be nonzero and the weights may not be
-    meaningful. Check ``status`` and ``message`` on the result.
+    Note:
+        If the problem is infeasible (e.g., because the bounds preclude any
+        solution), the returned status will be nonzero and the weights may
+        not be meaningful. Check ``status`` and ``message`` on the result.
 
     """
     A, b, w0 = _validate_inputs(A, b, w0)
@@ -203,8 +172,8 @@ def leximin_residual(
     c[-1] = 1.0
     # Variable bounds: w between w0*min_ratio and w0*max_ratio; epsilon >= 0
     bounds = [(w0[i] * min_ratio, w0[i] * max_ratio) for i in range(n)] + [(0, None)]
-    # Construct inequality constraints
-    # We will build 2*m inequalities: A_j w - epsilon <= b_j and -A_j w - epsilon <= -b_j
+    # Construct inequality constraints. We will build 2*m inequalities:
+    # A_j w - epsilon <= b_j and -A_j w - epsilon <= -b_j
     A_ub = np.zeros((2 * m, n + 1))
     b_ub = np.zeros(2 * m)
     for j in range(m):
@@ -249,14 +218,18 @@ def _setup_weight_fair_constraints(
 ) -> tuple[np.ndarray, np.ndarray, list[tuple[float | None, float | None]]]:
     """Set up constraints for the weight-fair stage of calibration.
 
-    Returns
-    -------
-    A_ub : ndarray
-        Inequality constraint matrix.
-    b_ub : ndarray
-        Inequality constraint right hand side.
-    bounds : list
-        Variable bounds.
+    Args:
+        A: Membership matrix of shape ``(m, n)``.
+        b: Target totals of shape ``(m,)``.
+        w0: Base weights of shape ``(n,)``.
+        epsilon_opt: Worst residual achieved by the residual stage.
+        min_ratio: Lower bound on weights relative to ``w0``.
+        max_ratio: Upper bound on weights relative to ``w0``.
+        slack: Extra residual allowance granted to the second stage.
+
+    Returns:
+        The inequality constraint matrix, its right hand side, and the
+        variable bounds.
 
     """
     m, n = A.shape
@@ -266,9 +239,9 @@ def _setup_weight_fair_constraints(
     bounds = [(w0[i] * min_ratio, w0[i] * max_ratio) for i in range(n)] + [(0, None)]
 
     # Build inequality constraints
-    # Residual constraints: +/- (A_j w - b_j) <= epsilon_opt + slack
-    # We'll build 2*m inequalities of the form A_j w + 0*t <= b_j + epsilon_opt + slack
-    # and -A_j w + 0*t <= -b_j + epsilon_opt + slack
+    # Residual constraints: +/- (A_j w - b_j) <= epsilon_opt + slack. We build
+    # 2*m inequalities of the form A_j w + 0*t <= b_j + epsilon_opt + slack and
+    # -A_j w + 0*t <= -b_j + epsilon_opt + slack
     total_constraints = 2 * m + 2 * n  # residual constraints + weight change bounds
     A_ub = np.zeros((total_constraints, n + 1))
     b_ub = np.zeros(total_constraints)
@@ -284,7 +257,8 @@ def _setup_weight_fair_constraints(
         A_ub[2 * j + 1, -1] = 0.0
         b_ub[2 * j + 1] = -b[j] + epsilon_opt + slack
 
-    # Weight change bounds: for each i, w_i - w0_i <= t * w0_i and -(w_i - w0_i) <= t * w0_i
+    # Weight change bounds: for each i, w_i - w0_i <= t * w0_i and
+    # -(w_i - w0_i) <= t * w0_i
     offset = 2 * m
     for i in range(n):
         # w_i - w0_i - t * w0_i <= 0  -> 1*w_i - w0_i* t <= w0_i
@@ -331,24 +305,20 @@ def leximin_weight_fair(
         \quad
         w_i \in [w_{0,i}\,\text{min\_ratio},\, w_{0,i}\,\text{max\_ratio}].
 
-    Parameters
-    ----------
-    A, b, w0 : see :func:`leximin_residual`.
-    min_ratio, max_ratio : float, optional
-        Weight bounds relative to the base weights. Defaults are ``0.1`` and
-        ``10.0`` respectively.
-    slack : float, optional
-        Additional slack added to the optimum residual when constraining
-        residuals in the second stage. Allows the algorithm to trade a small
-        increase in margin error for improved weight stability. Defaults to
-        ``0.0``.
-    return_stages : bool, optional
-        If ``True``, return the intermediate result of the residual stage as
-        well as the final result.
+    Args:
+        A: Membership matrix of shape ``(m, n)``.
+        b: Target totals of shape ``(m,)``.
+        w0: Base weights of shape ``(n,)``.
+        min_ratio: Lower bound on weights relative to ``w0``.
+        max_ratio: Upper bound on weights relative to ``w0``.
+        slack: Additional slack added to the optimum residual when
+            constraining residuals in the second stage. Allows the algorithm
+            to trade a small increase in margin error for improved weight
+            stability.
+        return_stages: If ``True``, return the intermediate result of the
+            residual stage as well as the final result.
 
-    Returns
-    -------
-    CalibrationResult or tuple
+    Returns:
         If ``return_stages`` is ``False`` (default), a single
         :class:`CalibrationResult` containing the final weights and both the
         residual and weight fairness optima. If ``return_stages`` is
@@ -362,7 +332,8 @@ def leximin_weight_fair(
             return stage1, stage1
         return stage1
 
-    # Set up the second stage: minimise t subject to residual constraints and weight change bounds
+    # Set up the second stage: minimise t subject to residual constraints and
+    # weight change bounds
     A, b, w0 = _validate_inputs(A, b, w0)
     n = A.shape[1]
 

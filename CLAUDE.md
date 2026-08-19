@@ -13,31 +13,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Installation
 ```bash
-# For development with test dependencies
-uv sync --group dev
+uv sync --all-groups
 ```
 
 ### Testing
 ```bash
-# Run all tests
-uv run pytest -q
-
-# Run tests with color output (as used in CI)
-uv run pytest -q --color=yes
+uv run pytest
 ```
 
-### Running Examples
+### Everything CI runs
 ```bash
-# Run the basic example (Jupyter notebook)
-cd docs/examples && uv run jupyter notebook basic_example.ipynb
+make ci
 ```
+
+### Docs
+```bash
+make docs   # sphinx-build -W -b html docs _site
+```
+The example notebook at `docs/examples/basic_example.ipynb` is executed by
+`myst-nb` during the docs build; it is committed without outputs on purpose.
 
 ## Code Architecture
 
 ### Core Package Structure
-- `fairlex/calibration.py` - Main calibration algorithms and linear programming solvers
-- `fairlex/metrics.py` - Solution evaluation and diagnostic metrics
-- `fairlex/__init__.py` - Public API exports
+- `src/fairlex/calibration.py` - Main calibration algorithms and linear programming solvers
+- `src/fairlex/metrics.py` - Solution evaluation and diagnostic metrics
+- `src/fairlex/__init__.py` - Public API exports
 
 ### Key Components
 
@@ -58,8 +59,15 @@ Weight bounds are specified as multiplicative ratios relative to base weights (e
 
 ### Dependencies
 - **Required**: numpy>=1.26.0, scipy>=1.11.0
-- **Development**: pytest>=7.0, ruff>=0.7.0, pyright>=1.1.0, deptry>=0.20.0
+- **Development**: pytest, pytest-cov, ruff, pyright, pre-commit
 - **Python**: 3.12+ (tested on 3.12, 3.13, 3.14 in CI)
+
+### Conventions
+This repo follows the [py-canon](https://github.com/gojiplus/py-canon) fleet
+standard: CI, docs and release run from py-canon's reusable workflows, Sphinx
+config comes from `py_canon.sphinx.configure`, docstrings are Google style
+(enforced by ruff pydocstyle and pydoclint), and `uvx preen check --strict`
+must pass.
 
 ### Testing Strategy
 - CI runs on Python 3.12, 3.13, 3.14
@@ -67,4 +75,7 @@ Weight bounds are specified as multiplicative ratios relative to base weights (e
 - Use `uv run pytest -q` for quiet output matching CI configuration  
 - Test categories: input validation, simple cases, edge cases, numerical stability
 - All algorithms verified for mathematical correctness
-- Quality checks: ruff (linting/formatting), pyright (type checking), deptry (dependency analysis)
+- Quality checks: ruff (linting/formatting), pyright (type checking),
+  pydoclint (docstring/signature agreement), preen (fleet conformance)
+- Coverage floor is set in `.github/workflows/ci.yml` (`coverage-floor`), not
+  in `pyproject.toml`

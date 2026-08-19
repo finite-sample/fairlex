@@ -1,20 +1,17 @@
 API Reference
 =============
 
-This page contains the API reference for fairlex.
+.. automodule:: fairlex
+   :no-members:
 
-Calibration Functions
----------------------
+Everything below is re-exported from the top-level ``fairlex`` namespace, so
+``from fairlex import leximin_weight_fair`` and
+``from fairlex.calibration import leximin_weight_fair`` are equivalent.
+
+Calibration
+-----------
 
 .. automodule:: fairlex.calibration
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Core Classes
-------------
-
-.. autoclass:: fairlex.CalibrationResult
    :members:
    :undoc-members:
    :show-inheritance:
@@ -23,14 +20,6 @@ Metrics and Evaluation
 ----------------------
 
 .. automodule:: fairlex.metrics
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Main Package
-------------
-
-.. automodule:: fairlex
    :members:
    :undoc-members:
    :show-inheritance:

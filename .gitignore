@@ -193,3 +193,9 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 .DS_Store
+
+# Sphinx / docs builds (CI writes _site and _doctest at the repo root)
+_site/
+_doctest/
+.jupyter_cache/
+jupyter_execute/

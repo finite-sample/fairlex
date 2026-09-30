@@ -9,9 +9,10 @@ import numpy as np
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+from fairlex import calibration
 from fairlex.calibration import leximin_weights
 
-from .test_calibration import _ordered_outcome_leximin, check_against_oracle
+from .test_calibration import _levels, _ordered_outcome_leximin, check_against_oracle
 
 ACC = 1e-5
 LO, HI = 0.5, 2.0
@@ -126,15 +127,18 @@ def test_misses_match_the_independent_oracle(problem):
 def test_weight_changes_match_the_independent_oracle(problem):
     """The weight stage's relative changes are leximin-optimal per unit.
 
-    The oracle holds every margin at the miss fairlex achieved (plus a hair)
-    and computes the leximin vector of |w_i / w0_i - 1| over units by the
-    ordered-outcome method, sharing no code with the saturation loop.
+    The oracle holds every margin exactly where the engine's weight stage
+    does, at its leximin level plus the engine's tolerance, and computes the
+    leximin vector of |w_i / w0_i - 1| over units by the ordered-outcome
+    method, sharing no code with the saturation loop.
     """
     A, b, w0 = problem
+    s = np.abs(b)
 
     result = leximin_weights(A, b, w0, min_ratio=LO, max_ratio=HI)
 
-    radius = np.abs(result.residuals) + 1e-6 * np.abs(b)
+    levels = _levels(A, b, w0, s, LO, HI)
+    radius = (levels + calibration._tol(levels, b / s)) * s
     extra = (np.vstack([A, -A]), np.r_[b + radius, -b + radius])
     expected = _ordered_outcome_leximin(
         np.diag(1 / w0), np.ones(len(w0)), w0 * LO, w0 * HI, extra=extra

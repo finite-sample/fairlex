@@ -164,3 +164,14 @@ def test_quantiles_that_share_a_key_raise():
             np.array([1.0, 2.0, 3.0]),
             quantiles=(0.1234567, 0.1234568),
         )
+
+
+def test_repeated_quantile_gives_one_key():
+    result = evaluate_solution(
+        np.array([[1, 1, 1]]),
+        np.array([6.0]),
+        np.array([1.0, 2.0, 3.0]),
+        quantiles=(0.5, 0.5),
+    )
+    assert [k for k in result if k.startswith("weight_p")] == ["weight_p50"]
+    assert np.isclose(result["weight_p50"], 2.0)

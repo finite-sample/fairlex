@@ -118,7 +118,8 @@ def _compute_weight_metrics(
         Dictionary containing weight distribution metrics.
 
     Raises:
-        ValueError: If two quantiles round to the same ``weight_p*`` key.
+        ValueError: If two different quantiles round to the same
+            ``weight_p*`` key. A repeated quantile just yields its one key.
 
     """
     # Keys use ``:g`` (six significant digits) so common quantiles read as
@@ -195,7 +196,7 @@ def evaluate_solution(
     Raises:
         ValueError: If ``w`` has non-finite or negative entries (e.g. the
             ``NaN`` weights of a failed solve), a quantile is outside
-            ``[0, 1]``, or two quantiles round to the same key.
+            ``[0, 1]``, or two different quantiles round to the same key.
 
     """
     w = np.asarray(w, dtype=float)

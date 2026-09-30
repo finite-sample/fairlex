@@ -7,53 +7,130 @@ fairlex: leximin calibration
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docs](https://img.shields.io/badge/docs-github.io-blue)](https://finite-sample.github.io/fairlex/)
 
+When your survey weights cannot hit every target, something has to give.
+``fairlex`` decides what gives by a rule you can state and defend: make the worst
+percentage miss across your margins as small as possible, then the next worst, and so
+on, while keeping every weight within a fixed ratio of its base weight.
 
-``fairlex`` implements risk-averse calibration of survey weights using leximin objectives.
-Unlike standard calibration that either (a) hits all margins exactly (sometimes creating
-spiky weights) or (b) accepts uneven misses, leximin prioritizes uniform guarantees: it
-shrinks the worst margin miss first, then the next worst, and so on, with every weight
-kept within a fixed ratio of its base value. Misses are compared as a percentage of each
-target by default, so a small group's miss is not swamped by the population total.
+Targets often cannot all be hit. They come from different sources that disagree (census
+age by sex, a voter file for party, last year's survey for region), and weight caps
+limit how far any respondent can be pushed. Raking then stops wherever it stops, and
+penalised calibration spreads the misses according to a tuning constant nobody reports.
+Either way, a small group can quietly end up far off its target.
 
-Why use it?
------------
+The name is about that choice. "Fair" means sharing unavoidable misses across margins,
+not machine-learning fairness.
 
-When exact calibration is infeasible under weight caps.
+What you get
+------------
 
-1. When targets are noisy/inconsistent and you want bounded misses rather than fragile exact hits.
-2. When you need fairness/stability—no margin (or subgroup) becomes the sacrificial lamb.
-3. In rolling waves, to prevent whiplash by bounding the worst per-unit weight changes.
+A small group is not sacrificed to the big margins. In the example below, three targets
+contradict each other by 30 people. A method that compares misses in raw counts splits
+them evenly, 10 people per margin, which leaves the small group 16.7% short of its
+target of 60. fairlex compares misses as percentages of their targets and spreads them
+as an equal 1.48% on every margin.
 
-``fairlex`` is designed to be both easy to use and
-flexible enough to support different calibration objectives. The two
-principal calibration strategies are:
+You get one number that bounds the damage. The largest relative miss is the most bias
+the misses can add to *any* weighted estimate, among outcomes whose dependence on the
+margins is limited in proportion to the targets. The
+[documentation](https://finite-sample.github.io/fairlex/) proves this in one line and
+says what it does not cover.
 
-* **Residual leximin** (``leximin_residual``) – finds weights whose margin
-  misses are leximin-optimal: the largest miss is as small as the weight
-  bounds allow, then the second largest, and so on. Many weight vectors
-  achieve those misses; this function returns one of them.
-* **Weight‐fair leximin** (``leximin_weight_fair``) – keeps every margin at
-  its leximin miss (plus an optional ``slack``) and, among those weights,
-  makes the relative weight changes ``|w - w0| / w0`` leximin-optimal too.
-  A group's adjustment is spread evenly over its members, and units no
-  margin needs to move keep their base weight.
+You set the priorities. ``importance={"race": 4}`` makes misses on race count four times
+as much, so race is held closer to its targets at the expense of the other variables.
 
-Both are solved as sequences of linear programmes (SciPy's HiGHS) over the
-distinct membership patterns in ``A``, so with 0/1 margins the cost barely
-depends on the number of respondents.
+You learn which targets are the problem. The report names the worst-missed targets and
+says whether they conflict with other targets or are out of reach within the weight
+bounds.
+
+Weights move as little as they can. Among weights with the best misses, the relative
+changes ``|w - w0| / w0`` are leximin-optimal too. Each group's adjustment is spread
+evenly over its members, respondents no margin needs to move keep their base weight, and
+the design effect is bounded by the largest change. Use last wave's weights as the base
+weights and a new wave moves each respondent as little as the new targets allow.
+
+It is fast. Respondents with the same answers on every variable share one ratio, so the
+linear programmes grow with the number of distinct answer patterns, not respondents:
+50,000 respondents on four variables take about 0.2 s.
+
+When not to use it
+------------------
+
+If your targets are consistent and reachable within your weight caps, every calibration
+method hits them, and the choice among methods matters less. Standard raking in
+[svy](https://github.com/samplics-org/svy) or [balance](https://github.com/facebookresearch/balance)
+is fine. If you care about a single outcome and know how it depends on the margins, a
+method tuned to that outcome can do better on it than a worst-case guarantee.
 
 Installation
 ------------
 
-``fairlex`` requires Python 3.12+ and depends on ``numpy>=1.26`` and
-``scipy>=1.12``. Install it from PyPI:
+``fairlex`` requires Python 3.12+ and depends on ``numpy>=1.26``, ``pandas>=2.1.1`` and
+``scipy>=1.12``:
 
 ```bash
 pip install fairlex
 ```
 
-For development, clone this repository and sync the environment with
-[uv](https://docs.astral.sh/uv/):
+Usage
+-----
+
+Give ``calibrate`` your data and the targets for each variable, as
+``{variable: {level: target}}``:
+
+```python
+import pandas as pd
+from fairlex import calibrate
+
+# 1,000 respondents; 30 belong to a small group and carry base weight 2
+df = pd.DataFrame(
+    {"group": ["small"] * 30 + ["rest"] * 970, "w": [2.0] * 30 + [1.0] * 970}
+)
+# Sources disagree: the group counts say 60 + 970 = 1,030, the census total says 1,000
+report = calibrate(
+    df,
+    {"group": {"small": 60, "rest": 970}},
+    total=1000,
+    base_weight="w",
+    bounds=(0.5, 2.0),
+)
+print(report)
+```
+
+```text
+largest miss: 1.48% of target   largest weight change: 1.5%   ESS: 973   design effect: 1.03
+worst-missed targets: group=small (conflicting targets), group=rest (conflicting targets), (total)=all (conflicting targets)
+variable level  target  before   after  miss miss_pct
+   group small    60.0    60.0    59.1  -0.9   -1.48%
+   group  rest   970.0   970.0   955.7 -14.3   -1.48%
+ (total)   all 1,000.0 1,030.0 1,014.8  14.8   +1.48%
+```
+
+``report.weights`` holds the calibrated weights, indexed like ``df``. The report names the
+targets with the worst miss and why they miss. "Conflicting targets" means meeting one
+better would push another further off. "Weight bounds" means the target is out of reach
+even with every member at the bound. With several variables, pass ``shares=True`` and
+proportions when your sources agree on proportions but not on the population size, and
+``importance={"race": 4}`` to protect a variable's margins four times as much.
+
+### Standard errors
+
+Generate replicate base weights with your survey package (for example svy's
+``create_bs_wgts``) and calibrate each one exactly as the full sample:
+
+```python
+from fairlex import calibrate_replicates
+
+reps = calibrate_replicates(df, targets, replicate_columns, total=N, bounds=(0.5, 2.0))
+```
+
+Then combine the replicate estimates as your replicate method prescribes. Under Poisson
+sampling use a Poisson bootstrap: when the weight bounds bind, a bootstrap that holds the
+sample size fixed understates the standard error about threefold. The documentation's
+"Standard errors" page has the simulation behind this.
+
+Development
+-----------
 
 ```bash
 git clone https://github.com/finite-sample/fairlex.git
@@ -61,57 +138,4 @@ cd fairlex
 uv sync --all-groups
 ```
 
-`make help` lists the available development targets; `make ci` runs the same
-checks CI does.
-
-Usage
------
-
-Construct a membership matrix ``A`` of shape ``(m, n)``, where each row
-corresponds to a margin and each column to a survey unit. Each entry
-represents whether the unit belongs to the margin (1.0 or 0.0 for simple
-groups). Supply the target totals ``b``, the base weights ``w0`` and call
-the desired calibration function:
-
-```python
-import numpy as np
-from fairlex import leximin_weight_fair, evaluate_solution
-
-# Example data: two margins (sex and age) plus total
-A = np.array(
-    [
-        # sex: female
-        [1, 0, 1, 0, 1],
-        # sex: male
-        [0, 1, 0, 1, 0],
-        # age: young
-        [1, 1, 0, 0, 1],
-        # age: old
-        [0, 0, 1, 1, 0],
-        # total
-        [1, 1, 1, 1, 1],
-    ],
-    dtype=float,
-)
-target = np.array([6, 4, 6, 4, 10], dtype=float)  # Feasible targets
-w0 = np.array([1, 1, 1, 1, 1], dtype=float)
-
-# Calibrate using weight‐fair leximin
-res = leximin_weight_fair(A, target, w0, min_ratio=0.5, max_ratio=2.0)
-
-# Inspect the weights and diagnostics
-weights = res.w
-metrics = evaluate_solution(A, target, weights, base_weights=w0)
-print(metrics)
-```
-
-``res.residuals`` holds the raw misses ``A @ w - b``, ``res.epsilon`` the
-largest miss as a fraction of its target (``scale="absolute"`` compares raw
-misses instead) and ``res.t`` the largest relative weight change.
-
-``evaluate_solution`` returns a dictionary with a variety of diagnostics,
-including the largest absolute and relative residual, effective sample size
-(ESS), design effect and the requested quantiles of the weight distribution
-(``weight_p99``, ``weight_p95``, ``weight_p50`` by default). If you supply
-the base weights via ``base_weights``, it also reports relative deviations
-from the original weights, over units whose base weight is positive.
+`make help` lists the development targets; `make ci` runs the same checks CI does.

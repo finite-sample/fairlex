@@ -9,6 +9,43 @@ that version.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-30
+
+### Added
+
+- `calibrate(df, targets, ...)`: calibrate a data frame to targets given as
+  `{variable: {level: total}}`, or as proportions with `shares=True`. Options:
+  `base_weight`, `total`, `importance` (per-variable priority), `bounds` and
+  `slack`. It returns a `CalibrationReport` with the weights, a per-target
+  table of misses, ESS and design effect, and the worst-missed targets, each
+  labelled "conflicting targets" or "weight bounds". It rejects negative
+  targets, shares that do not sum to 1 (beyond rounding), and a missing `total` when the
+  variables imply different population sizes.
+- `calibrate_replicates(df, targets, replicate_columns, ...)`: calibrate
+  replicate base weights the same way, for standard errors.
+- Docs page "Why leximin": the largest relative miss is the worst-case bias
+  the misses can add to any weighted total, over outcomes whose dependence on
+  the margins is bounded in proportion to the targets. It also states what the
+  guarantee does not cover. `tests/test_theory.py` checks each claim.
+- Docs page "Standard errors": the replicate recipe, validated by simulation
+  with simcheck (`benchmarks/se_study.py`). When weight bounds bind, use a
+  bootstrap that lets the sample size vary: Rao-Wu understated the standard
+  error about threefold.
+- Tests with closed-form answers, Hypothesis property tests, and independent
+  oracles for both leximin stages. Each was checked to fail on a
+  deliberately broken solver.
+
+### Changed
+
+- **Breaking:** the public API is `calibrate`, `calibrate_replicates` and
+  `CalibrationReport`. `leximin_residual`, `leximin_weight_fair`,
+  `evaluate_solution` and `CalibrationResult` are no longer exported; the
+  engine lives on as `fairlex.calibration.leximin_weights`.
+- **Breaking:** requires pandas >= 2.1.1 (the first release with wheels for Python 3.12).
+- The README leads with the data-frame workflow and says plainly that "fair"
+  refers to sharing calibration misses across margins, not to machine-learning
+  fairness.
+
 ## [0.4.0] - 2026-09-29
 
 ### Fixed

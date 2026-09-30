@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "fairlex"
-version = "0.4.0"
+version = "0.5.0"
 description = "Leximin calibration for survey weights"
 authors = [
   { name = "Gaurav Sood", email = "contact@gsood.com" },
@@ -15,6 +15,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
   "numpy>=1.26.0",
+  "pandas>=2.1.1",
   "scipy>=1.12.0",
 ]
 classifiers = [
@@ -39,6 +40,9 @@ Repository = "https://github.com/finite-sample/fairlex"
 [tool.uv.build-backend]
 module-name = "fairlex"
 
+[tool.uv.sources]
+simcheck = { git = "https://github.com/finite-sample/simcheck", rev = "v0.1.0" }
+
 [dependency-groups]
 dev = [
   "ruff>=0.14",
@@ -46,7 +50,11 @@ dev = [
   "pre-commit>=4",
   { include-group = "test" },
 ]
-test = ["pytest>=8", "pytest-cov>=6"]
+test = [
+    "hypothesis>=6.100",
+    "pytest>=8",
+    "pytest-cov>=6",
+]
 docs = [
   "sphinx>=8",
   "py-canon @ git+https://github.com/gojiplus/py-canon@v1",
@@ -55,6 +63,11 @@ docs = [
   "myst-nb>=1.2",
   "sphinx-copybutton",
   "pandas>=2.0.0",
+]
+bench = [
+    "polars>=1.0",
+    "simcheck",
+    "svy>=0.30",
 ]
 
 [tool.ruff]
@@ -91,6 +104,8 @@ max-args = 8
 # PLR2004: assertions compare against literal expected values by design.
 "tests/**" = ["S101", "D", "ARG", "SLF", "PLR2004"]
 "docs/**" = ["D"]
+# T201: the regime study is a command-line script whose output is its report.
+"benchmarks/**" = ["T201"]
 # T201: printing is how a tutorial notebook produces its rendered output.
 "docs/**/*.ipynb" = ["D", "T201"]
 

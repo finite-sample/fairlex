@@ -1,44 +1,28 @@
-r"""Core calibration routines for fairlex.
+r"""The leximin calibration engine behind :func:`fairlex.calibrate`.
 
-Both routines take a membership matrix ``A`` of shape ``(m, n)`` (one row per
-margin, one column per unit; entries are 0/1 or soft memberships), target
-totals ``b`` of length ``m`` and base weights ``w0`` of length ``n``. Each
-calibrated weight is kept within ``[min_ratio * w0_i, max_ratio * w0_i]``.
+:func:`leximin_weights` takes a membership matrix ``A`` of shape ``(m, n)``
+(one row per margin, one column per respondent), target totals ``b``, base
+weights ``w0`` and a positive scale ``s`` per margin. It finds weights within
+``[min_ratio * w0_i, max_ratio * w0_i]`` whose scaled misses
+:math:`|A_j w - b_j| / s_j` are leximin-optimal (the largest as small as
+possible, then the next largest, and so on) and, among those, whose relative
+changes :math:`|w_i - w_{0,i}| / w_{0,i}` are leximin-optimal as well.
 
-Margin misses are compared on a common scale before they are ranked. With
-``scale="relative"`` (the default) margin ``j`` contributes
-:math:`|A_j w - b_j| / |b_j|`, so a miss of 10 on a group of 30 counts for
-more than a miss of 10 on the population total. With ``scale="absolute"``
-raw misses are compared.
-
-* :func:`leximin_residual` finds the leximin-optimal vector of scaled misses:
-  the largest miss is as small as possible, then the second largest, and so
-  on.
-* :func:`leximin_weight_fair` keeps every margin at its leximin level (plus
-  optional ``slack``) and, among those weights, makes the vector of relative
-  weight changes :math:`|w_i - w_{0,i}| / w_{0,i}` leximin-optimal as well.
-
-Implementation notes. Every problem is solved in ratio space,
-:math:`g_i = w_i / w_{0,i}`, which keeps the linear programmes well scaled
-whatever the magnitude of the weights. Units with identical columns of ``A``
-("cells") are interchangeable: giving them a common ratio never worsens
-either leximin vector (averaging two ratios never raises the larger of their
-changes), so the programmes are solved over distinct cells rather than
-units. With 0/1 memberships on a handful of margins that is at most a few
-dozen variables regardless of ``n``. Soft memberships rarely repeat, so they
-get no such reduction. Levels are held to within a small tolerance of the
-solver's optimum, so misses and changes are leximin-optimal to about 1e-5 of
-the target scale, not to machine precision.
+Every problem is solved in ratio space, :math:`g_i = w_i / w_{0,i}`, which
+keeps the linear programmes well scaled whatever the size of the weights.
+Respondents with identical columns of ``A`` ("cells") are interchangeable:
+giving them a common ratio never worsens either leximin vector (averaging two
+ratios never raises the larger of their changes), so the programmes are
+solved over distinct cells rather than respondents. Levels are held to within
+a small tolerance of the solver's optimum, so misses and changes are
+leximin-optimal to about 1e-5 of the target scale, not to machine precision.
 """
 
 from dataclasses import dataclass
-from typing import Literal
 
 import numpy as np
 from scipy import sparse
 from scipy.optimize import OptimizeResult, linprog
-
-EXPECTED_MATRIX_DIMENSIONS = 2
 
 # HiGHS works to a primal feasibility tolerance of 1e-7, so a solution it
 # returns can sit that far outside its constraints. Every "hold this at its
@@ -52,21 +36,18 @@ _TOL = 3e-7
 # are saturated.
 _DUAL_TOL = 1e-9
 
-Scale = Literal["relative", "absolute"]
-
 
 @dataclass
 class CalibrationResult:
-    """Structured result from a calibration call.
+    """What :func:`leximin_weights` returns.
 
     Attributes:
         w: Calibrated weights of shape ``(n,)``. ``NaN`` if the solve failed.
         residuals: Raw margin residuals ``A @ w - b`` of shape ``(m,)``.
-        epsilon: Largest scaled absolute residual achieved by ``w``
-            (a fraction of the target under ``scale="relative"``).
+        epsilon: Largest scaled absolute residual achieved by ``w``.
         t: Largest relative weight change ``|w_i - w0_i| / w0_i`` achieved,
-            over units with positive base weight. ``None`` for
-            :func:`leximin_residual` and for failed solves.
+            over units with positive base weight. ``None`` if the solve
+            failed.
         status: Status code of the last linear programme (0 is success).
         message: Solver termination message for diagnostics.
 
@@ -92,74 +73,48 @@ class _Cells:
 
 
 def _validate_inputs(
-    A: np.ndarray,
     b: np.ndarray,
     w0: np.ndarray,
+    s: np.ndarray,
     *,
     min_ratio: float,
     max_ratio: float,
-    scale: str,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Validate inputs and derive the per-margin residual scale.
+    slack: float,
+) -> None:
+    """Check the inputs a user can get wrong through :func:`fairlex.calibrate`.
 
     Args:
-        A: Membership matrix of shape ``(m, n)``.
-        b: Target totals of shape ``(m,)``.
-        w0: Base weights of shape ``(n,)``.
+        b: Target totals.
+        w0: Base weights.
+        s: Per-margin scales.
         min_ratio: Lower bound on weights relative to ``w0``.
         max_ratio: Upper bound on weights relative to ``w0``.
-        scale: ``"relative"`` or ``"absolute"``.
-
-    Returns:
-        ``(A, b, w0, s)`` as float arrays, where ``s`` holds the divisor for
-        each margin's residual.
+        slack: Extra scaled miss allowed on top of the leximin levels.
 
     Raises:
-        ValueError: If shapes are incompatible, values are non-finite, base
-            weights are negative, the ratios are not ``0 <= min <= max``,
-            ``scale`` is unknown, or a relative scale meets a zero target.
+        ValueError: If targets or base weights are non-finite, base weights
+            are negative, the bounds are not ``0 <= lower <= upper < inf``,
+            scales are not positive and finite, or ``slack`` is negative.
 
     """
-    A = np.asarray(A, dtype=float)
-    b = np.asarray(b, dtype=float)
-    w0 = np.asarray(w0, dtype=float)
-    if A.ndim != EXPECTED_MATRIX_DIMENSIONS:
-        msg = f"A must be two-dimensional, got shape {A.shape}"
+    if not np.all(np.isfinite(b)):
+        msg = "targets must be finite numbers"
         raise ValueError(msg)
-    m, n = A.shape
-    if b.shape != (m,):
-        msg = f"b must be of shape {(m,)}, got {b.shape}"
-        raise ValueError(msg)
-    if w0.shape != (n,):
-        msg = f"w0 must be of shape {(n,)}, got {w0.shape}"
-        raise ValueError(msg)
-    for name, arr in (("A", A), ("b", b), ("w0", w0)):
-        if not np.all(np.isfinite(arr)):
-            msg = f"{name} must contain only finite values"
-            raise ValueError(msg)
-    if np.any(w0 < 0):
-        msg = "w0 must be non-negative"
+    if not np.all(np.isfinite(w0)) or np.any(w0 < 0):
+        msg = "base weights must be finite and non-negative"
         raise ValueError(msg)
     if not (np.isfinite(max_ratio) and 0 <= min_ratio <= max_ratio):
         msg = (
-            "ratios must satisfy 0 <= min_ratio <= max_ratio < inf, got "
-            f"min_ratio={min_ratio}, max_ratio={max_ratio}"
+            "bounds must satisfy 0 <= lower <= upper < inf, "
+            f"got ({min_ratio}, {max_ratio})"
         )
         raise ValueError(msg)
-    if scale == "relative":
-        if np.any(b == 0):
-            msg = (
-                "scale='relative' divides each residual by |b_j|, but some "
-                "targets are zero; use scale='absolute'"
-            )
-            raise ValueError(msg)
-        s = np.abs(b)
-    elif scale == "absolute":
-        s = np.ones(m)
-    else:
-        msg = f"scale must be 'relative' or 'absolute', got {scale!r}"
+    if not np.all(np.isfinite(s)) or np.any(s <= 0):
+        msg = "every margin needs a positive, finite scale; is a target zero?"
         raise ValueError(msg)
-    return A, b, w0, s
+    if not (np.isfinite(slack) and slack >= 0):
+        msg = f"slack must be a finite non-negative number, got {slack}"
+        raise ValueError(msg)
 
 
 def _cells(
@@ -371,84 +326,39 @@ def _result(
     )
 
 
-def leximin_residual(
+def leximin_weights(
     A: np.ndarray,
     b: np.ndarray,
     w0: np.ndarray,
+    s: np.ndarray | None = None,
     *,
     min_ratio: float = 0.1,
     max_ratio: float = 10.0,
-    scale: Scale = "relative",
-) -> CalibrationResult:
-    r"""Compute weights whose scaled margin misses are leximin-optimal.
-
-    With :math:`r_j(w) = |A_j w - b_j| / s_j` (``s_j = |b_j|`` for
-    ``scale="relative"``, 1 for ``"absolute"``), the returned weights make the
-    vector of :math:`r_j`, sorted from largest to smallest, lexicographically
-    minimal: the largest miss is as small as possible, then the second
-    largest given that, and so on, subject to
-    :math:`w_{0,i}\,\text{min\_ratio} \le w_i \le w_{0,i}\,\text{max\_ratio}`.
-
-    The miss levels are unique, but the weights achieving them usually are
-    not; :func:`leximin_weight_fair` picks the ones that change ``w0`` least.
-
-    Args:
-        A: Membership matrix of shape ``(m, n)``.
-        b: Target totals of shape ``(m,)``.
-        w0: Non-negative base weights of shape ``(n,)``.
-        min_ratio: Lower bound on weights relative to ``w0``.
-        max_ratio: Upper bound on weights relative to ``w0``.
-        scale: How misses are compared across margins: ``"relative"`` divides
-            each by ``|b_j|``, ``"absolute"`` uses raw misses.
-
-    Returns:
-        Weights, raw residuals and the largest scaled miss ``epsilon``. If a
-        solve fails, ``status`` is nonzero and the arrays are ``NaN``.
-
-    """
-    A, b, w0, s = _validate_inputs(
-        A, b, w0, min_ratio=min_ratio, max_ratio=max_ratio, scale=scale
-    )
-    cells = _cells(A, b, w0, s, min_ratio, max_ratio)
-    _, g, res = _leximin(cells.coef, cells.target, cells.bounds)
-    if res is not None and not res.success:
-        return _failure(len(w0), len(b), res)
-    return _result(A, b, s, _weights(w0, cells, g, min_ratio, max_ratio), None, res)
-
-
-def leximin_weight_fair(
-    A: np.ndarray,
-    b: np.ndarray,
-    w0: np.ndarray,
-    *,
-    min_ratio: float = 0.1,
-    max_ratio: float = 10.0,
-    scale: Scale = "relative",
     slack: float = 0.0,
 ) -> CalibrationResult:
-    r"""Compute leximin-calibrated weights whose changes are leximin-fair too.
+    r"""Leximin-calibrated weights whose changes are leximin-fair too.
 
-    First the leximin miss level :math:`\ell_j` of every margin is found as in
-    :func:`leximin_residual`. Then, over weights with
-    :math:`|A_j w - b_j| / s_j \le \ell_j + \text{slack}` for every margin and
-    within the ratio bounds, the relative changes
-    :math:`|w_i - w_{0,i}| / w_{0,i}` are made leximin-optimal: the largest
-    change is as small as possible, then the next largest, and so on. The
-    adjustment a margin needs is therefore spread evenly over the units that
-    can supply it, and units no margin needs to move stay at ``w0``. Units
-    with ``w0_i = 0`` stay at zero and are excluded from :math:`t`.
+    First the leximin miss level :math:`\ell_j` of every margin is found:
+    the largest scaled miss :math:`|A_j w - b_j| / s_j` as small as the bounds
+    allow, then the next largest, and so on. Then, over weights with
+    :math:`|A_j w - b_j| / s_j \le \ell_j + \text{slack}` for every margin
+    and within the ratio bounds, the relative changes
+    :math:`|w_i - w_{0,i}| / w_{0,i}` are made leximin-optimal in the same
+    way. The adjustment a margin needs is spread evenly over the respondents
+    who can supply it, and respondents no margin needs to move stay at
+    ``w0``. Respondents with ``w0_i = 0`` stay at zero.
 
     Args:
         A: Membership matrix of shape ``(m, n)``.
         b: Target totals of shape ``(m,)``.
         w0: Non-negative base weights of shape ``(n,)``.
+        s: Positive scale per margin; margin ``j``'s miss is divided by
+            ``s_j``. Defaults to ``|b|``, so misses compare as fractions of
+            their targets.
         min_ratio: Lower bound on weights relative to ``w0``.
         max_ratio: Upper bound on weights relative to ``w0``.
-        scale: How misses are compared across margins: ``"relative"`` divides
-            each by ``|b_j|``, ``"absolute"`` uses raw misses.
         slack: Extra scaled miss each margin may take on top of its leximin
-            level, in the units of ``scale`` (a fraction of the target under
-            ``"relative"``), to buy smaller weight changes.
+            level, to buy smaller weight changes.
 
     Returns:
         Weights, raw residuals, the achieved largest scaled miss ``epsilon``
@@ -456,17 +366,12 @@ def leximin_weight_fair(
         fails, ``status`` is nonzero, the arrays are ``NaN`` and ``t`` is
         ``None``.
 
-    Raises:
-        ValueError: If ``slack`` is negative or non-finite, or the inputs are
-            invalid (see :func:`leximin_residual`).
-
     """
-    if not (np.isfinite(slack) and slack >= 0):
-        msg = f"slack must be a finite non-negative number, got {slack}"
-        raise ValueError(msg)
-    A, b, w0, s = _validate_inputs(
-        A, b, w0, min_ratio=min_ratio, max_ratio=max_ratio, scale=scale
-    )
+    A = np.asarray(A, dtype=float)
+    b = np.asarray(b, dtype=float)
+    w0 = np.asarray(w0, dtype=float)
+    s = np.abs(b) if s is None else np.asarray(s, dtype=float)
+    _validate_inputs(b, w0, s, min_ratio=min_ratio, max_ratio=max_ratio, slack=slack)
     m, n = A.shape
     cells = _cells(A, b, w0, s, min_ratio, max_ratio)
     levels, g, res = _leximin(cells.coef, cells.target, cells.bounds)

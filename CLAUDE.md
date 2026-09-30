@@ -58,7 +58,7 @@ Both calibration methods solve sequential linear programming problems:
 Weight bounds are specified as multiplicative ratios relative to base weights (e.g., `min_ratio=0.5, max_ratio=2.0`).
 
 ### Dependencies
-- **Required**: numpy>=1.26.0, scipy>=1.12.0
+- **Required**: numpy>=1.26.0, pandas>=2.1.1, scipy>=1.12.0
 - **Development**: pytest, pytest-cov, ruff, pyright, pre-commit
 - **Python**: 3.12+ (tested on 3.12, 3.13, 3.14 in CI)
 

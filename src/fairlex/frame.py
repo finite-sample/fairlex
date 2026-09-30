@@ -19,6 +19,9 @@ from .metrics import design_effect, effective_sample_size
 # the worst one: the solver holds levels to about 1e-6 of the target scale.
 _BINDING_RTOL = 1e-4
 _MIN_BINDING = 1e-6
+# Shares may be rounded when published; within this of 1 they count as summing
+# to 1. Also the relative tolerance for variables agreeing on a population size.
+_SHARE_TOL = 1e-3
 # A unit counts as at its bound when its ratio is within this fraction of the
 # bound. The weight stage may move a capped unit by ~1e-4 while holding the
 # margins to their tolerance (1.24984 against a 1.25 cap in the docs example),
@@ -119,10 +122,95 @@ def _margin_rows(
             if not member.any():
                 msg = f"no respondents have {var}={level!r}, so it cannot be hit"
                 raise ValueError(msg)
+            if not float(value) >= 0:
+                msg = (
+                    "targets must be non-negative numbers, "
+                    f"got {var}={level!r}: {value!r}"
+                )
+                raise ValueError(msg)
             labels.append((var, level))
             rows.append(member)
             values.append(float(value))
     return labels, np.array(rows), np.array(values)
+
+
+def _variable_sums(b: np.ndarray, variables: list[str]) -> dict[str, float]:
+    return {
+        v: float(b[[x == v for x in variables]].sum()) for v in dict.fromkeys(variables)
+    }
+
+
+def _totals(
+    b: np.ndarray, variables: list[str], *, shares: bool, total: float | None
+) -> np.ndarray:
+    """Turn shares into totals, after checking they are proportions.
+
+    Args:
+        b: Raw target values, one per margin.
+        variables: The variable of each margin.
+        shares: Whether the values are proportions.
+        total: Population size, required with ``shares``.
+
+    Returns:
+        Target totals, one per margin.
+
+    Raises:
+        ValueError: If ``shares`` is set without ``total`` or a variable's
+            shares do not sum to 1.
+
+    """
+    if not shares:
+        return b
+    if total is None:
+        msg = "shares=True needs total= to turn proportions into totals"
+        raise ValueError(msg)
+    sums = _variable_sums(b, variables)
+    off = {v: s for v, s in sums.items() if abs(s - 1) > _SHARE_TOL}
+    if off:
+        detail = ", ".join(f"{v} sums to {s:g}" for v, s in off.items())
+        msg = f"with shares=True each variable's targets must sum to 1: {detail}"
+        raise ValueError(msg)
+    return b * total
+
+
+def _starting_weights(
+    data: pd.DataFrame,
+    b: np.ndarray,
+    variables: list[str],
+    *,
+    base_weight: str | None,
+    total: float | None,
+) -> np.ndarray:
+    """Base weights: the named column, or ``total / n`` for everyone.
+
+    Args:
+        data: Respondent-level data.
+        b: Target totals, one per margin.
+        variables: The variable of each margin.
+        base_weight: Column of base weights, if any.
+        total: Population size, if given.
+
+    Returns:
+        One base weight per respondent.
+
+    Raises:
+        ValueError: If there is no base-weight column and no ``total``, and
+            the variables' targets imply different population sizes.
+
+    """
+    if base_weight is not None:
+        return data[base_weight].to_numpy(dtype=float)
+    size = total
+    if size is None:
+        sums = list(_variable_sums(b, variables).values())
+        if max(sums) - min(sums) > _SHARE_TOL * max(sums):
+            msg = (
+                "the variables' targets imply different population sizes "
+                f"({min(sums):g} to {max(sums):g}); pass total= or base_weight="
+            )
+            raise ValueError(msg)
+        size = sums[0]
+    return np.full(len(data), size / len(data))
 
 
 def calibrate(
@@ -148,14 +236,13 @@ def calibrate(
             data must have a target. With ``shares=False`` the values are
             population totals, and different variables may disagree about
             the overall size: that disagreement is what gets shared out.
-            With ``shares=True`` each variable's values are proportions,
-            rescaled to ``total``.
+            With ``shares=True`` each variable's values are proportions that
+            sum to 1, multiplied by ``total``. Targets must be non-negative.
         base_weight: Column holding the base (design) weights. If omitted,
             every respondent starts at ``total / n``.
         total: Population size. Added as its own margin when given. Required
-            with ``shares=True`` or when ``base_weight`` is omitted and the
-            targets do not imply a single size; otherwise the mean of the
-            variables' target sums is used for the base weights.
+            with ``shares=True``, and when ``base_weight`` is omitted and the
+            variables' targets imply different population sizes.
         shares: Treat each variable's targets as proportions. Use it when
             your sources agree on proportions but not on the population size;
             the disagreement about size then disappears before calibration.
@@ -178,24 +265,9 @@ def calibrate(
     labels, A, b = _margin_rows(data, targets)
     variables = [v for v, _ in labels]
 
-    if shares:
-        if total is None:
-            msg = "shares=True needs total= to turn proportions into totals"
-            raise ValueError(msg)
-        for var in targets:
-            rows = [i for i, v in enumerate(variables) if v == var]
-            b[rows] *= total / b[rows].sum()
-
+    b = _totals(b, variables, shares=shares, total=total)
     n = len(data)
-    if base_weight is not None:
-        w0 = data[base_weight].to_numpy(dtype=float)
-    else:
-        size = total
-        if size is None:
-            size = float(
-                np.mean([b[[v == var for v in variables]].sum() for var in targets])
-            )
-        w0 = np.full(n, size / n)
+    w0 = _starting_weights(data, b, variables, base_weight=base_weight, total=total)
 
     if total is not None:
         labels.append(("(total)", "all"))
@@ -237,7 +309,8 @@ def calibrate(
     )
     scaled = np.abs(result.residuals) * factor / np.abs(b)
     binding = []
-    if result.status == 0 and result.epsilon > _MIN_BINDING:
+    # A miss within ``slack`` was allowed on purpose, so it is not binding.
+    if result.status == 0 and result.epsilon > slack + _MIN_BINDING:
         # Units with zero base weight (e.g. left out of a bootstrap draw) are
         # pinned at zero and have no ratio, so they are not members here.
         positive = w0 > 0

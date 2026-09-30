@@ -18,7 +18,9 @@ that version.
   `base_weight`, `total`, `importance` (per-variable priority), `bounds` and
   `slack`. It returns a `CalibrationReport` with the weights, a per-target
   table of misses, ESS and design effect, and the worst-missed targets, each
-  labelled "conflicting targets" or "weight bounds".
+  labelled "conflicting targets" or "weight bounds". It rejects negative
+  targets, shares that do not sum to 1, and a missing `total` when the
+  variables imply different population sizes.
 - `calibrate_replicates(df, targets, replicate_columns, ...)`: calibrate
   replicate base weights the same way, for standard errors.
 - Docs page "Why leximin": the largest relative miss is the worst-case bias

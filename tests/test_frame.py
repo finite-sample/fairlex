@@ -189,3 +189,40 @@ def test_zero_base_weights_do_not_warn(survey):
 
     assert (report.weights.iloc[:50] == 0).all()
     assert report.binding
+
+
+def test_slack_is_not_reported_as_a_conflict():
+    """A miss that slack allows is not a binding target."""
+    df = pd.DataFrame({"g": ["a"], "w": [1.0]})
+
+    report = calibrate(df, {"g": {"a": 2.0}}, base_weight="w", slack=0.25)
+
+    assert report.epsilon > 0.2
+    assert report.binding == []
+
+
+def test_missing_total_with_disagreeing_sizes_raises():
+    df = pd.DataFrame({"a": ["x", "y"], "b": ["p", "q"]})
+    targets = {"a": {"x": 1.0, "y": 1.0}, "b": {"p": 3.0, "q": 3.0}}
+
+    with pytest.raises(ValueError, match="total="):
+        calibrate(df, targets)
+
+
+def test_missing_total_with_one_implied_size_is_fine():
+    df = pd.DataFrame({"a": ["x", "y"], "b": ["p", "q"]})
+    targets = {"a": {"x": 1.0, "y": 3.0}, "b": {"p": 1.0, "q": 3.0}}
+
+    report = calibrate(df, targets)
+
+    assert np.isclose(report.weights.sum(), 4.0, rtol=ACC)
+
+
+def test_shares_must_sum_to_one(survey):
+    with pytest.raises(ValueError, match="sum to 1"):
+        calibrate(survey, {"sex": {"f": 0.2, "m": 0.2}}, shares=True, total=400.0)
+
+
+def test_negative_targets_raise(survey):
+    with pytest.raises(ValueError, match="non-negative"):
+        calibrate(survey, {"sex": {"f": -1.0, "m": 401.0}})

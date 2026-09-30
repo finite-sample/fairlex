@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 from scipy.optimize import linprog
 
-from fairlex import leximin_residual, leximin_weight_fair
+from fairlex.calibration import leximin_weights
 from fairlex.metrics import design_effect
 
 ACC = 1e-5
@@ -50,7 +50,7 @@ def test_epsilon_is_worst_case_bias(seed):
     A, b, w0 = _random_problem(seed)
     s = np.random.default_rng(seed + 1000).uniform(0.5, 3.0, len(b)) * np.abs(b)
 
-    result = leximin_residual(A, b, w0, min_ratio=0.5, max_ratio=2.0, scale=s)
+    result = leximin_weights(A, b, w0, min_ratio=0.5, max_ratio=2.0, s=s)
 
     assert np.isclose(_worst_case_bias(result.residuals, s), result.epsilon)
 
@@ -62,8 +62,8 @@ def test_relative_scale_ignores_units_of_each_margin():
     rows_rescaled[1] *= 1000.0
     b2[1] *= 1000.0
 
-    r1 = leximin_residual(A, b, w0, min_ratio=0.5, max_ratio=2.0)
-    r2 = leximin_residual(rows_rescaled, b2, w0, min_ratio=0.5, max_ratio=2.0)
+    r1 = leximin_weights(A, b, w0, min_ratio=0.5, max_ratio=2.0)
+    r2 = leximin_weights(rows_rescaled, b2, w0, min_ratio=0.5, max_ratio=2.0)
 
     assert np.allclose(np.abs(r1.residuals) / b, np.abs(r2.residuals) / b2, atol=ACC)
 
@@ -75,9 +75,9 @@ def test_absolute_scale_depends_on_units_of_each_margin():
     rows_rescaled[1] *= 1000.0
     b2[1] *= 1000.0
 
-    r1 = leximin_residual(A, b, w0, min_ratio=0.5, max_ratio=2.0, scale="absolute")
-    r2 = leximin_residual(
-        rows_rescaled, b2, w0, min_ratio=0.5, max_ratio=2.0, scale="absolute"
+    r1 = leximin_weights(A, b, w0, min_ratio=0.5, max_ratio=2.0, s=np.ones(len(b)))
+    r2 = leximin_weights(
+        rows_rescaled, b2, w0, min_ratio=0.5, max_ratio=2.0, s=np.ones(len(b))
     )
 
     assert not np.allclose(
@@ -96,7 +96,7 @@ def test_single_variable_is_capped_post_stratification():
     b = mass * np.array([0.3, 0.9, 1.4, 3.0])
     lo, hi = 0.5, 2.0
 
-    result = leximin_weight_fair(A, b, w0, min_ratio=lo, max_ratio=hi)
+    result = leximin_weights(A, b, w0, min_ratio=lo, max_ratio=hi)
 
     expected_ratio = np.clip(b / mass, lo, hi)[cat]
     assert np.allclose(result.w / w0, expected_ratio, atol=ACC)
@@ -107,7 +107,7 @@ def test_weight_stage_bounds_design_effect(seed):
     """Ratios in [1 - t, 1 + t] imply deff <= deff0 * ((1 + t) / (1 - t))^2."""
     A, b, w0 = _random_problem(seed)
 
-    result = leximin_weight_fair(A, b, w0, min_ratio=0.5, max_ratio=2.0)
+    result = leximin_weights(A, b, w0, min_ratio=0.5, max_ratio=2.0)
 
     t = result.t
     assert t is not None

@@ -2,21 +2,19 @@ Why leximin
 ===========
 
 This page states what the misses reported by fairlex guarantee, and what
-choosing ``scale`` means. Each claim is checked numerically in
+``importance`` means. Each claim is checked numerically in
 ``tests/test_theory.py`` by a route that shares no code with the solver.
 
 Setup
 -----
 
-Margin :math:`j` has membership row :math:`A_j` and target :math:`b_j`. Weights
-:math:`w` leave a miss :math:`r_j = A_j w - b_j`. Let :math:`s_j > 0` be the
-scale of margin :math:`j`:
-
-* :math:`s_j = |b_j|` for ``scale="relative"``;
-* :math:`s_j = 1` for ``scale="absolute"``;
-* any positive numbers you pass as an array.
-
-fairlex reports :math:`\epsilon = \max_j |r_j| / s_j`.
+Margin :math:`j` is one level of one variable, for example ``age=18-29``. It
+has membership row :math:`A_j` (1 for respondents at that level) and target
+:math:`b_j`. Weights :math:`w` leave a miss :math:`r_j = A_j w - b_j`. fairlex
+compares misses on the scale :math:`s_j = |b_j| / c_j`, where :math:`c_j` is
+the ``importance`` of the margin's variable (1 unless you say otherwise). So
+:math:`|r_j| / s_j` is the relative miss times its importance, and fairlex
+reports :math:`\epsilon = \max_j |r_j| / s_j`.
 
 Misses bound the bias of every estimate
 ---------------------------------------
@@ -51,28 +49,21 @@ minimum are fixed, it minimises the worst case over outcomes that load only on
 the remaining margins, and so on. That is the precise sense in which no
 margin is sacrificed.
 
-What ``scale`` means
---------------------
+What ``importance`` means
+-------------------------
 
 The set of outcomes you are protecting against is
 :math:`\sum_j s_j |\beta_j| \le 1`. A small :math:`s_j` allows outcomes that
 depend strongly on margin :math:`j`, so misses there are expensive. A large
 :math:`s_j` says outcomes depend on margin :math:`j` only weakly, so it may
-absorb more miss. **The scale is your statement of which margins matter.**
+absorb more miss. **Importance is your statement of which variables matter.**
 
-* ``scale="relative"`` measures each loading per unit of *share* of the
-  target: a 1% miss on any margin counts the same. It is the neutral choice
-  when you have no view about the outcomes.
-* ``scale="absolute"`` treats one person as one person on every margin, so
-  large margins dominate.
-* A custom array expresses priorities. To make education twice as important
-  as the other margins, relative to their targets, halve its scale:
-
-  .. code-block:: python
-
-     s = np.abs(b)
-     s[education_rows] /= 2
-     leximin_weight_fair(A, b, w0, scale=s)
+* By default every variable has importance 1, so each loading is measured per
+  unit of *share* of its target and a 1% miss on any margin counts the same.
+  It is the neutral choice when you have no view about the outcomes.
+* ``importance={"education": 2}`` halves education's scale: a 1% miss on an
+  education margin counts as much as a 2% miss elsewhere, which protects the
+  outcomes that depend strongly on education.
 
 Adding a total row alongside categories that sum to it is not double
 counting. It adds outcomes that load on the total to the protected set. Leave
@@ -82,15 +73,17 @@ Other properties
 ----------------
 
 * **Unique misses.** The leximin vector of scaled misses is unique. The weights
-  achieving it need not be; :func:`fairlex.leximin_weight_fair` picks the ones
-  whose relative changes are themselves leximin-optimal.
-* **Units do not matter under the relative scale.** Multiplying one margin's
-  row and target by a constant leaves every scaled miss unchanged. Under
-  ``scale="absolute"`` it changes the result.
-* **One categorical variable is capped post-stratification.** If the margins
-  are the categories of a single variable, every unit in category :math:`k`
-  gets ratio :math:`\operatorname{clip}(b_k / W_k,\ \text{min\_ratio},\
-  \text{max\_ratio})`, where :math:`W_k` is the category's base-weight total.
+  achieving it need not be; fairlex picks the ones whose relative changes are
+  themselves leximin-optimal.
+* **Units do not matter.** Because misses are compared relative to their
+  targets, measuring a margin in different units (multiplying its row and
+  target by a constant) leaves every scaled miss unchanged. Comparing raw
+  counts instead would change the result.
+* **One categorical variable is capped post-stratification.** If the targets
+  cover a single variable, every respondent in category :math:`k` gets ratio
+  :math:`\operatorname{clip}(b_k / W_k,\ \text{lower},\ \text{upper})`, where
+  :math:`W_k` is the category's base-weight total and the bounds come from
+  ``bounds``.
 * **The weight stage bounds variance inflation.** Every ratio
   :math:`w_i / w_{0,i}` lies in :math:`[1 - t, 1 + t]`. For :math:`t < 1` the
   Kish design effect therefore satisfies

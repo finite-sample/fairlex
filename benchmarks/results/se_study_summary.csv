@@ -1,0 +1,7 @@
+regime,bootstrap,"bias, % of truth",reported se / true spread,"95% coverage, %",se calibrated (simcheck),unbiased (simcheck),coverage ok (simcheck)
+"exact targets, loose bounds",rao-wu,0.0,1.05,96.0,pass,pass,pass
+"exact targets, loose bounds",poisson,0.0,1.06,96.2,pass,pass,pass
+"exact targets, binding bounds",rao-wu,-17.3,0.36,0.0,fail,not tested,not tested
+"exact targets, binding bounds",poisson,-17.3,1.02,0.0,pass,not tested,not tested
+disagreeing targets,rao-wu,-1.5,1.05,83.5,pass,not tested,not tested
+disagreeing targets,poisson,-1.5,1.06,84.0,pass,not tested,not tested

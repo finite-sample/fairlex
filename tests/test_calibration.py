@@ -4,75 +4,40 @@ import numpy as np
 import pytest
 from scipy.optimize import OptimizeResult, linprog
 
-from fairlex import calibration, leximin_residual, leximin_weight_fair
+from fairlex import calibration
+from fairlex.calibration import leximin_weights
 
 # Levels are held with a relative tolerance of 3e-7 per round (above HiGHS's
 # 1e-7 feasibility tolerance), so results are exact to about 1e-5 of the
 # target scale rather than to machine precision.
 ACC = 1e-5
 
-# Input validation
-
-
-def test_inconsistent_shapes():
-    A = np.array([[1, 0], [0, 1]])
-    b = np.array([1, 2, 3])
-    w0 = np.array([1, 1])
-
-    with pytest.raises(ValueError, match="b must be of shape"):
-        leximin_residual(A, b, w0)
-
-
-def test_wrong_w0_shape():
-    A = np.array([[1, 0], [0, 1]])
-    b = np.array([1, 2])
-    w0 = np.array([1, 1, 1])
-
-    with pytest.raises(ValueError, match="w0 must be of shape"):
-        leximin_residual(A, b, w0)
-
-
-def test_1d_membership_matrix():
-    A = np.array([1, 0])
-    b = np.array([1, 2])
-    w0 = np.array([1, 1])
-
-    with pytest.raises(ValueError, match=r"A must be two.*dimensional"):
-        leximin_residual(A, b, w0)
+# Input validation (what a user can get wrong through fairlex.calibrate)
 
 
 @pytest.mark.parametrize(
-    ("A", "b", "w0", "kwargs", "match"),
+    ("b", "w0", "kwargs", "match"),
     [
-        ([[1.0, np.nan]], [1.0], [1.0, 1.0], {}, "finite"),
-        ([[1.0, 1.0]], [np.inf], [1.0, 1.0], {}, "finite"),
-        ([[1.0, 1.0]], [1.0], [1.0, np.nan], {}, "finite"),
-        ([[1.0, 1.0]], [1.0], [-1.0, 1.0], {}, "non-negative"),
-        ([[1.0, 1.0]], [1.0], [1.0, 1.0], {"min_ratio": 2, "max_ratio": 1}, "ratio"),
-        ([[1.0, 1.0]], [1.0], [1.0, 1.0], {"min_ratio": -0.5}, "ratio"),
-        ([[1.0, 1.0]], [1.0], [1.0, 1.0], {"max_ratio": np.inf}, "ratio"),
-        ([[1.0, 1.0]], [1.0], [1.0, 1.0], {"scale": "log"}, "scale"),
-        ([[1.0, 1.0]], [0.0], [1.0, 1.0], {}, "relative"),
-        ([[1.0, 1.0]], [1.0], [1.0, 1.0], {"scale": [1.0, 2.0]}, "scale"),
-        ([[1.0, 1.0]], [1.0], [1.0, 1.0], {"scale": [0.0]}, "scale"),
-        ([[1.0, 1.0]], [1.0], [1.0, 1.0], {"scale": [-1.0]}, "scale"),
-        ([[1.0, 1.0]], [1.0], [1.0, 1.0], {"scale": [np.nan]}, "scale"),
+        ([np.inf], [1.0, 1.0], {}, "targets"),
+        ([1.0], [1.0, np.nan], {}, "base weights"),
+        ([1.0], [-1.0, 1.0], {}, "base weights"),
+        ([1.0], [1.0, 1.0], {"min_ratio": 2, "max_ratio": 1}, "bounds"),
+        ([1.0], [1.0, 1.0], {"min_ratio": -0.5}, "bounds"),
+        ([1.0], [1.0, 1.0], {"max_ratio": np.inf}, "bounds"),
+        ([0.0], [1.0, 1.0], {}, "scale"),
+        ([1.0], [1.0, 1.0], {"s": [0.0]}, "scale"),
+        ([1.0], [1.0, 1.0], {"s": [np.nan]}, "scale"),
+        ([1.0], [1.0, 1.0], {"slack": -1.0}, "slack"),
     ],
 )
-def test_invalid_inputs_raise(A, b, w0, kwargs, match):
-    for fn in (leximin_residual, leximin_weight_fair):
-        with pytest.raises(ValueError, match=match):
-            fn(np.array(A), np.array(b), np.array(w0), **kwargs)
+def test_invalid_inputs_raise(b, w0, kwargs, match):
+    with pytest.raises(ValueError, match=match):
+        leximin_weights(np.array([[1.0, 1.0]]), np.array(b), np.array(w0), **kwargs)
 
 
-def test_negative_slack_raises():
-    with pytest.raises(ValueError, match="slack"):
-        leximin_weight_fair(np.array([[1.0]]), np.array([1.0]), np.ones(1), slack=-1)
-
-
-def test_zero_target_allowed_with_absolute_scale():
-    result = leximin_residual(
-        np.array([[1.0, 1.0]]), np.array([0.0]), np.ones(2), scale="absolute"
+def test_zero_target_allowed_with_its_own_scale():
+    result = leximin_weights(
+        np.array([[1.0, 1.0]]), np.array([0.0]), np.ones(2), s=np.ones(1)
     )
     assert result.status == 0
 
@@ -81,32 +46,32 @@ def test_zero_target_allowed_with_absolute_scale():
 
 
 def test_single_variable_single_constraint():
-    result = leximin_residual(
+    result = leximin_weights(
         np.array([[1.0]]), np.array([2.0]), np.array([1.0]), min_ratio=0.5
     )
 
     assert result.status == 0
-    assert np.isclose(result.w[0], 2.0)
-    assert np.isclose(result.epsilon, 0.0)
-    assert result.t is None
+    assert np.isclose(result.w[0], 2.0, atol=ACC)
+    assert result.epsilon < ACC
+    assert np.isclose(result.t, 1.0, atol=ACC)
 
 
 def test_exactly_feasible_problem():
     A = np.array([[1, 0], [0, 1], [1, 1]])
     b = np.array([3, 2, 5])
 
-    result = leximin_residual(A, b, np.ones(2))
+    result = leximin_weights(A, b, np.ones(2))
 
     assert result.status == 0
-    assert np.allclose(result.w, [3, 2])
-    assert np.allclose(result.residuals, 0.0)
+    assert np.allclose(result.w, [3, 2], atol=ACC)
+    assert np.allclose(result.residuals, 0.0, atol=10 * ACC)
 
 
 def test_conflicting_targets_absolute():
     A = np.array([[1, 0], [1, 0]])
     b = np.array([3, 4])
 
-    result = leximin_residual(A, b, np.ones(2), scale="absolute")
+    result = leximin_weights(A, b, np.ones(2), s=np.ones(len(b)))
 
     assert np.isclose(result.w[0], 3.5)
     assert np.isclose(result.epsilon, 0.5)
@@ -117,21 +82,21 @@ def test_conflicting_targets_relative():
     A = np.array([[1, 0], [1, 0]])
     b = np.array([3, 4])
 
-    result = leximin_residual(A, b, np.ones(2))
+    result = leximin_weights(A, b, np.ones(2))
 
     assert np.isclose(result.w[0], 24 / 7)
     assert np.isclose(result.epsilon, 1 / 7)
 
 
 def test_empty_problem():
-    result = leximin_residual(np.zeros((0, 0)), np.array([]), np.array([]))
+    result = leximin_weights(np.zeros((0, 0)), np.array([]), np.array([]))
     assert result.status == 0
     assert len(result.w) == 0
 
 
 def test_no_margins_keeps_base_weights():
     w0 = np.array([1.0, 2.0])
-    result = leximin_weight_fair(np.zeros((0, 2)), np.array([]), w0)
+    result = leximin_weights(np.zeros((0, 2)), np.array([]), w0)
     assert np.allclose(result.w, w0)
     assert np.isclose(result.t, 0.0)
 
@@ -141,7 +106,7 @@ def test_zero_base_weights():
     b = np.array([2])
     w0 = np.array([0, 1])
 
-    for fn in (leximin_residual, leximin_weight_fair):
+    for fn in (leximin_weights,):
         result = fn(A, b, w0, min_ratio=0.5, max_ratio=2.0)
         assert result.status == 0
         assert np.isclose(result.w[0], 0)
@@ -161,21 +126,22 @@ def test_second_worst_margin_is_minimised():
     A = np.array([[1, 0, 0], [1, 0, 1], [0, 1, 0]], dtype=float)
     b = np.array([10, 10, 5], dtype=float)
 
-    result = leximin_residual(
-        A, b, np.ones(3), min_ratio=0.5, max_ratio=2.0, scale="absolute"
+    result = leximin_weights(
+        A, b, np.ones(3), min_ratio=0.5, max_ratio=2.0, s=np.ones(len(b))
     )
 
     assert np.allclose(np.abs(result.residuals), [8, 6, 3])
     assert np.isclose(result.epsilon, 8)
 
 
-def _ordered_outcome_leximin(a_scaled, c, lb, ub):
+def _ordered_outcome_leximin(a_scaled, c, lb, ub, extra=None):
     """Leximin vector of |a_scaled w - c| via Ogryczak's ordered-outcome method.
 
     Independent of fairlex's saturation loop: it lexicographically minimises
     the cumulative sums of the k largest absolute residuals, k = 1..m, using
     top_k(e) = min_u k*u + sum_j max(0, e_j - u). The successive differences
     of those optimal sums are the leximin vector in descending order.
+    ``extra = (rows, rhs)`` adds constraints ``rows @ w <= rhs`` on ``w``.
     """
     m, n = a_scaled.shape
     thetas = []
@@ -204,7 +170,15 @@ def _ordered_outcome_leximin(a_scaled, c, lb, ub):
                 row[u] = q
                 row[u + 1 : u + 1 + m] = 1.0
                 rows.append(row)
-                rhs.append(thetas[q - 1] + 1e-9)
+                # Room above the solver's feasibility tolerance: older HiGHS
+                # (SciPy 1.12) reports tighter pins as infeasible.
+                rhs.append(thetas[q - 1] * (1 + 1e-6) + 1e-8)
+        if extra is not None:
+            for row_w, r in zip(*extra, strict=True):
+                row = np.zeros(nv)
+                row[:n] = row_w
+                rows.append(row)
+                rhs.append(r)
         obj = np.zeros(nv)
         u = n + m + (k - 1) * (1 + m)
         obj[u] = k
@@ -214,29 +188,61 @@ def _ordered_outcome_leximin(a_scaled, c, lb, ub):
             + [(0, None)] * m
             + [(None, None), *[(0, None)] * m] * k
         )
-        res = linprog(obj, A_ub=np.array(rows), b_ub=rhs, bounds=bounds)
+        # Interior point, unlike the engine's dual simplex, for a second
+        # solver path. Presolve is off because SciPy 1.12's HiGHS presolve
+        # wrongly declares some of these programmes infeasible.
+        res = linprog(
+            obj,
+            A_ub=np.array(rows),
+            b_ub=rhs,
+            bounds=bounds,
+            method="highs-ipm",
+            options={"presolve": False},
+        )
         assert res.success
         thetas.append(res.fun)
     return np.diff(np.concatenate([[0.0], thetas]))
 
 
+def _levels(A, b, w0, s, lo, hi):
+    """Leximin miss levels from the saturation stage alone (before weights)."""
+    cells = calibration._cells(A, b, w0, s, lo, hi)
+    levels, _, _ = calibration._leximin(cells.coef, cells.target, cells.bounds)
+    return levels
+
+
+def check_against_oracle(A, b, w0, s, lo, hi):
+    """Levels match the oracle; final misses never exceed their levels.
+
+    The saturation stage computes the leximin miss vector; the oracle must
+    agree with it. The weight stage then only promises to keep each margin at
+    or below its level (plus the ~1e-6 tolerance), and may leave lower-ranked
+    margins a little below theirs, so the final misses are checked against
+    that promise rather than compared with the oracle.
+    """
+    levels = _levels(A, b, w0, s, lo, hi)
+    expected = _ordered_outcome_leximin(A / s[:, None], b / s, w0 * lo, w0 * hi)
+    scale = 1 + np.abs(b / s).max()
+    assert np.allclose(np.sort(levels)[::-1], expected, atol=ACC * scale)
+
+    result = leximin_weights(A, b, w0, s, min_ratio=lo, max_ratio=hi)
+    final = np.abs(result.residuals) / s
+    assert np.all(final <= levels + ACC * scale)
+
+
 @pytest.mark.parametrize("seed", range(30))
 @pytest.mark.parametrize("scale", ["relative", "absolute"])
 def test_matches_independent_leximin(seed, scale):
+    """Leximin levels match the ordered-outcome oracle under two scales."""
     rng = np.random.default_rng(seed)
     m, n = rng.integers(2, 7), rng.integers(3, 12)
     A = (rng.random((m, n)) < 0.5).astype(float)
     A[:, rng.integers(n)] = 1.0
     w0 = rng.uniform(0.5, 3.0, n)
     b = A @ w0 * rng.uniform(0.4, 2.5, m)
-    lo, hi = 0.5, 2.0
-
-    result = leximin_residual(A, b, w0, min_ratio=lo, max_ratio=hi, scale=scale)
-
     s = np.abs(b) if scale == "relative" else np.ones(m)
-    expected = _ordered_outcome_leximin(A / s[:, None], b / s, w0 * lo, w0 * hi)
-    got = np.sort(np.abs(result.residuals) / s)[::-1]
-    assert np.allclose(got, expected, atol=ACC * (1 + np.abs(b / s).max()))
+
+    check_against_oracle(A, b, w0, s, 0.5, 2.0)
 
 
 def test_relative_scale_protects_small_groups():
@@ -253,19 +259,19 @@ def test_relative_scale_protects_small_groups():
     b = np.array([1000.0, 60.0, 970.0])
     w0 = np.r_[np.full(n_g, 2.0), np.ones(n - n_g)]
 
-    absolute = leximin_residual(A, b, w0, scale="absolute")
-    relative = leximin_residual(A, b, w0)
+    absolute = leximin_weights(A, b, w0, s=np.ones(len(b)))
+    relative = leximin_weights(A, b, w0)
 
-    assert np.allclose(np.abs(absolute.residuals), 10.0)
+    assert np.allclose(np.abs(absolute.residuals), 10.0, atol=ACC * b.max())
     assert np.abs(absolute.residuals[1]) / 60 > 0.16
-    assert np.allclose(np.abs(relative.residuals) / b, 30 / 2030)
+    assert np.allclose(np.abs(relative.residuals) / b, 30 / 2030, atol=ACC)
 
 
 def test_scale_array_equal_to_targets_matches_relative():
     A, b, w0 = _conflicting_margins()
 
-    relative = leximin_residual(A, b, w0)
-    explicit = leximin_residual(A, b, w0, scale=np.abs(b))
+    relative = leximin_weights(A, b, w0)
+    explicit = leximin_weights(A, b, w0, s=np.abs(b))
 
     assert np.allclose(relative.residuals, explicit.residuals, atol=ACC)
     assert np.isclose(relative.epsilon, explicit.epsilon, atol=ACC)
@@ -281,13 +287,16 @@ def test_scale_array_sets_margin_priority():
     A, b, w0 = _conflicting_margins()
     s = np.abs(b) * np.array([1.0, 2.0, 1.0])
 
-    result = leximin_residual(A, b, w0, scale=s)
+    result = leximin_weights(A, b, w0, s=s)
 
     scaled = np.abs(result.residuals) / s
-    assert np.allclose(scaled, scaled[0], atol=ACC)
+    # The weight stage may leave a margin a hair under its level (~1e-5).
+    assert np.allclose(scaled, scaled[0], atol=2 * ACC)
     assert np.isclose(np.abs(result.residuals).sum(), 30.0, atol=1e-3)
     assert np.isclose(
-        np.abs(result.residuals[1]) / 60, 2 * np.abs(result.residuals[0]) / 1000
+        np.abs(result.residuals[1]) / 60,
+        2 * np.abs(result.residuals[0]) / 1000,
+        atol=4 * ACC,
     )
 
 
@@ -307,7 +316,7 @@ def test_weight_fair_basic():
     A = np.array([[1, 0], [0, 1], [1, 1]])
     b = np.array([3, 2, 5])
 
-    result = leximin_weight_fair(A, b, np.ones(2))
+    result = leximin_weights(A, b, np.ones(2))
 
     assert result.status == 0
     assert np.allclose(result.w, [3, 2], atol=ACC)
@@ -319,8 +328,8 @@ def test_weight_fair_keeps_leximin_residual_profile():
     A = np.array([[1, 0, 0], [1, 0, 1], [0, 1, 0]], dtype=float)
     b = np.array([10, 10, 5], dtype=float)
 
-    result = leximin_weight_fair(
-        A, b, np.ones(3), min_ratio=0.5, max_ratio=2.0, scale="absolute"
+    result = leximin_weights(
+        A, b, np.ones(3), min_ratio=0.5, max_ratio=2.0, s=np.ones(len(b))
     )
 
     assert np.allclose(np.abs(result.residuals), [8, 6, 3], atol=1e-6)
@@ -331,7 +340,7 @@ def test_epsilon_reports_achieved_residual_with_slack():
     A = np.array([[1, 1, 0], [0, 1, 1]], dtype=float)
     b = np.array([3.0, 3.0])
 
-    result = leximin_weight_fair(A, b, np.ones(3), slack=0.5, scale="absolute")
+    result = leximin_weights(A, b, np.ones(3), slack=0.5, s=np.ones(len(b)))
 
     achieved = np.max(np.abs(A @ result.w - b))
     assert achieved > 0.1
@@ -353,7 +362,7 @@ def test_weight_fair_spreads_changes_evenly():
     b = np.array([20 * 1.5, 400 * 1.05, 580.0])
     w0 = np.ones(grp.size)
 
-    result = leximin_weight_fair(A, b, w0, min_ratio=0.3, max_ratio=3.0)
+    result = leximin_weights(A, b, w0, min_ratio=0.3, max_ratio=3.0)
 
     change = np.abs(result.w - w0)
     assert result.epsilon < ACC
@@ -368,7 +377,7 @@ def test_weight_fair_unequal_base_weights_share_ratio():
     A = np.array([[1.0, 1.0, 1.0]])
     w0 = np.array([1.0, 2.0, 3.0])
 
-    result = leximin_weight_fair(A, np.array([7.2]), w0)
+    result = leximin_weights(A, np.array([7.2]), w0)
 
     assert np.allclose(result.w / w0, 1.2)
 
@@ -381,7 +390,7 @@ def test_weight_fair_scales_to_large_n():
     w0 = rng.uniform(0.5, 2.0, n)
     b = A @ w0 * np.array([1.0, 1.05, 0.95, 1.1, 0.9])
 
-    result = leximin_weight_fair(A, b, w0, min_ratio=0.3, max_ratio=3.0)
+    result = leximin_weights(A, b, w0, min_ratio=0.3, max_ratio=3.0)
 
     assert result.status == 0
     assert result.epsilon < 1e-6
@@ -394,7 +403,7 @@ def test_residual_stage_failure_propagates(monkeypatch):
     monkeypatch.setattr(calibration, "_solve_lp", fail)
     A, b, w0 = np.array([[1.0, 1.0]]), np.array([3.0]), np.ones(2)
 
-    for fn in (leximin_residual, leximin_weight_fair):
+    for fn in (leximin_weights,):
         result = fn(A, b, w0)
         assert result.status == 4
         assert result.message == "numerical trouble"
@@ -414,7 +423,7 @@ def test_weight_stage_failure_propagates(monkeypatch):
         return real(*args, **kwargs)
 
     monkeypatch.setattr(calibration, "_solve_lp", fail_after_first)
-    result = leximin_weight_fair(np.array([[1.0, 1.0]]), np.array([3.0]), np.ones(2))
+    result = leximin_weights(np.array([[1.0, 1.0]]), np.array([3.0]), np.ones(2))
 
     assert result.status == 2
     assert np.all(np.isnan(result.w))
@@ -425,7 +434,7 @@ def test_weight_stage_failure_propagates(monkeypatch):
 
 
 def test_very_small_weights():
-    result = leximin_weight_fair(
+    result = leximin_weights(
         np.array([[1, 1]]), np.array([3e-10]), np.array([1e-10, 1e-10])
     )
     assert result.status == 0
@@ -433,7 +442,7 @@ def test_very_small_weights():
 
 
 def test_large_weights():
-    result = leximin_weight_fair(
+    result = leximin_weights(
         np.array([[1, 1]]), np.array([3e10]), np.array([1e10, 1e10])
     )
     assert result.status == 0

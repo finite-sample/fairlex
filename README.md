@@ -25,38 +25,33 @@ What you get
 ------------
 
 A small group is not sacrificed to the big margins. In the example below, three targets
-contradict each other by 30 people. Comparing raw counts puts almost the whole miss on a
-group of 30, which ends up 16.7% short. fairlex's default spreads it as an equal 1.48%
-on every margin.
+contradict each other by 30 people. A method that compares misses in raw counts splits
+them evenly, 10 people per margin, which leaves the small group 16.7% short of its
+target of 60. fairlex compares misses as percentages of their targets and spreads them
+as an equal 1.48% on every margin.
 
-You get one number that bounds the damage. ``epsilon``, the largest scaled miss, is the
-most bias the misses can add to *any* weighted estimate, among outcomes whose dependence
-on the margins is limited by the scale you chose. The
+You get one number that bounds the damage. The largest relative miss is the most bias
+the misses can add to *any* weighted estimate, among outcomes whose dependence on the
+margins is limited in proportion to the targets. The
 [documentation](https://finite-sample.github.io/fairlex/) proves this in one line and
 says what it does not cover.
 
-You set the priorities. Pass one scale per margin, and a margin with a smaller scale is
-protected more. Giving the small group four times the priority cuts its miss from 1.48%
-to 0.38%.
+You set the priorities. ``importance={"race": 4}`` makes misses on race count four times
+as much, so race is held closer to its targets at the expense of the other variables.
 
-Weights move as little as they can. Among weights with the best misses,
-``leximin_weight_fair`` makes the relative changes ``|w - w0| / w0`` leximin-optimal
-too. Each group's adjustment is spread evenly over its members, units no margin needs to
-move keep their base weight, and the design effect is bounded by the largest change.
-Pass last wave's weights as ``w0`` and a new wave moves each respondent as little as the
-new targets allow.
+You learn which targets are the problem. The report names the worst-missed targets and
+says whether they conflict with other targets or are out of reach within the weight
+bounds.
 
-It is fast. Respondents with the same margin memberships share one ratio, so the linear
-programmes grow with the number of distinct membership patterns, not respondents: 50,000
-respondents on five 0/1 margins take about 0.1 s.
+Weights move as little as they can. Among weights with the best misses, the relative
+changes ``|w - w0| / w0`` are leximin-optimal too. Each group's adjustment is spread
+evenly over its members, respondents no margin needs to move keep their base weight, and
+the design effect is bounded by the largest change. Use last wave's weights as the base
+weights and a new wave moves each respondent as little as the new targets allow.
 
-The documentation's "Where it helps" page puts numbers on this with a simulation of
-disagreeing sources and capped weights. When sources disagree, fairlex's worst miss is
-about a third lower than ridge calibration's, and small groups land closer to the
-truth. The cost is somewhat higher average error when targets are nearly consistent.
-Normalising each source to shares before calling fairlex keeps most of raking's
-accuracy without breaking the weight caps, which raking with trimming broke in 90% to
-100% of samples.
+It is fast. Respondents with the same answers on every variable share one ratio, so the
+linear programmes grow with the number of distinct answer patterns, not respondents:
+50,000 respondents on four variables take about 0.2 s.
 
 When not to use it
 ------------------
@@ -70,7 +65,7 @@ method tuned to that outcome can do better on it than a worst-case guarantee.
 Installation
 ------------
 
-``fairlex`` requires Python 3.12+ and depends on ``numpy>=1.26`` and
+``fairlex`` requires Python 3.12+ and depends on ``numpy>=1.26``, ``pandas>=2.1.1`` and
 ``scipy>=1.12``:
 
 ```bash
@@ -80,47 +75,59 @@ pip install fairlex
 Usage
 -----
 
-Each row of the membership matrix ``A`` is a margin and each column a respondent
-(1 if the respondent belongs to the margin, else 0). ``b`` holds the target totals and
-``w0`` the base weights.
+Give ``calibrate`` your data and the targets for each variable, as
+``{variable: {level: target}}``:
 
 ```python
-import numpy as np
-from fairlex import leximin_weight_fair
+import pandas as pd
+from fairlex import calibrate
 
-# 1,000 respondents: 30 in a small group, 970 outside it
-group = np.r_[np.ones(30), np.zeros(970)]
-A = np.vstack([np.ones(1000), group, 1 - group])
-# Targets from different sources: 60 + 970 = 1030, but the total says 1000
-b = np.array([1000.0, 60.0, 970.0])
-w0 = np.r_[np.full(30, 2.0), np.ones(970)]
-
-res = leximin_weight_fair(A, b, w0, min_ratio=0.5, max_ratio=2.0)
-print(res.residuals / b)  # [ 0.0148 -0.0148 -0.0148]: an equal 1.48% miss each
-print(res.epsilon, res.t)  # largest relative miss 1.48%, largest weight change 1.48%
-
-# Raw counts instead of percentages: the small group absorbs the miss
-leximin_weight_fair(A, b, w0, min_ratio=0.5, max_ratio=2.0, scale="absolute")
-# relative misses: +1.00%, -16.67%, -1.03%
-
-# Four times the priority for the small group: a smaller scale means more protection
-s = np.abs(b)
-s[1] /= 4
-leximin_weight_fair(A, b, w0, min_ratio=0.5, max_ratio=2.0, scale=s)
-# relative misses: +1.51%, -0.38%, -1.51%
+# 1,000 respondents; 30 belong to a small group and carry base weight 2
+df = pd.DataFrame(
+    {"group": ["small"] * 30 + ["rest"] * 970, "w": [2.0] * 30 + [1.0] * 970}
+)
+# Sources disagree: the group counts say 60 + 970 = 1,030, the census total says 1,000
+report = calibrate(
+    df,
+    {"group": {"small": 60, "rest": 970}},
+    total=1000,
+    base_weight="w",
+    bounds=(0.5, 2.0),
+)
+print(report)
 ```
 
-``leximin_residual`` stops after the first stage and returns some weights achieving the
-best misses. Use it when only the misses matter. ``leximin_weight_fair`` is the usual
-choice.
+```text
+largest miss: 1.48% of target   largest weight change: 1.5%   ESS: 973   design effect: 1.03
+worst-missed targets: group=small (conflicting targets), group=rest (conflicting targets), (total)=all (conflicting targets)
+variable level  target  before   after  miss miss_pct
+   group small    60.0    60.0    59.1  -0.9   -1.48%
+   group  rest   970.0   970.0   955.7 -14.3   -1.48%
+ (total)   all 1,000.0 1,030.0 1,014.8  14.8   +1.48%
+```
 
-``res.residuals`` holds the raw misses ``A @ w - b``, ``res.epsilon`` the largest scaled
-miss and ``res.t`` the largest relative weight change. ``slack`` lets every margin miss by
-a little more than its leximin level in exchange for smaller weight changes.
+``report.weights`` holds the calibrated weights, indexed like ``df``. The report names the
+targets with the worst miss and why they miss. "Conflicting targets" means meeting one
+better would push another further off. "Weight bounds" means the target is out of reach
+even with every member at the bound. With several variables, pass ``shares=True`` and
+proportions when your sources agree on proportions but not on the population size, and
+``importance={"race": 4}`` to protect a variable's margins four times as much.
 
-``evaluate_solution(A, b, res.w, base_weights=w0)`` reports the largest absolute and
-relative miss, effective sample size, design effect, weight quantiles
-(``weight_p99``, ``weight_p95``, ``weight_p50`` by default) and relative weight changes.
+### Standard errors
+
+Generate replicate base weights with your survey package (for example svy's
+``create_bs_wgts``) and calibrate each one exactly as the full sample:
+
+```python
+from fairlex import calibrate_replicates
+
+reps = calibrate_replicates(df, targets, replicate_columns, total=N, bounds=(0.5, 2.0))
+```
+
+Then combine the replicate estimates as your replicate method prescribes. Under Poisson
+sampling use a Poisson bootstrap: when the weight bounds bind, a bootstrap that holds the
+sample size fixed understates the standard error about threefold. The documentation's
+"Standard errors" page has the simulation behind this.
 
 Development
 -----------

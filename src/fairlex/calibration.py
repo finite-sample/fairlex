@@ -9,7 +9,8 @@ Margin misses are compared on a common scale before they are ranked. With
 ``scale="relative"`` (the default) margin ``j`` contributes
 :math:`|A_j w - b_j| / |b_j|`, so a miss of 10 on a group of 30 counts for
 more than a miss of 10 on the population total. With ``scale="absolute"``
-raw misses are compared.
+raw misses are compared, and an array of per-margin scales sets priorities
+directly: margin ``j``'s miss is divided by ``s_j``.
 
 * :func:`leximin_residual` finds the leximin-optimal vector of scaled misses:
   the largest miss is as small as possible, then the second largest, and so
@@ -31,6 +32,7 @@ solver's optimum, so misses and changes are leximin-optimal to about 1e-5 of
 the target scale, not to machine precision.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal
 
@@ -52,7 +54,7 @@ _TOL = 3e-7
 # are saturated.
 _DUAL_TOL = 1e-9
 
-Scale = Literal["relative", "absolute"]
+Scale = Literal["relative", "absolute"] | np.ndarray | Sequence[float]
 
 
 @dataclass
@@ -98,7 +100,7 @@ def _validate_inputs(
     *,
     min_ratio: float,
     max_ratio: float,
-    scale: str,
+    scale: Scale,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Validate inputs and derive the per-margin residual scale.
 
@@ -108,7 +110,8 @@ def _validate_inputs(
         w0: Base weights of shape ``(n,)``.
         min_ratio: Lower bound on weights relative to ``w0``.
         max_ratio: Upper bound on weights relative to ``w0``.
-        scale: ``"relative"`` or ``"absolute"``.
+        scale: ``"relative"``, ``"absolute"`` or one positive number per
+            margin.
 
     Returns:
         ``(A, b, w0, s)`` as float arrays, where ``s`` holds the divisor for
@@ -117,7 +120,8 @@ def _validate_inputs(
     Raises:
         ValueError: If shapes are incompatible, values are non-finite, base
             weights are negative, the ratios are not ``0 <= min <= max``,
-            ``scale`` is unknown, or a relative scale meets a zero target.
+            ``scale`` is unknown or not one positive number per margin, or a
+            relative scale meets a zero target.
 
     """
     A = np.asarray(A, dtype=float)
@@ -146,20 +150,47 @@ def _validate_inputs(
             f"min_ratio={min_ratio}, max_ratio={max_ratio}"
         )
         raise ValueError(msg)
+    return A, b, w0, _resolve_scale(scale, b)
+
+
+def _resolve_scale(scale: Scale, b: np.ndarray) -> np.ndarray:
+    """Turn the ``scale`` argument into one positive divisor per margin.
+
+    Args:
+        scale: ``"relative"``, ``"absolute"`` or one positive number per
+            margin.
+        b: Target totals of shape ``(m,)``.
+
+    Returns:
+        The per-margin divisors ``s``.
+
+    Raises:
+        ValueError: If ``scale`` is unknown or not one positive finite number
+            per margin, or a relative scale meets a zero target.
+
+    """
+    m = len(b)
+    if not isinstance(scale, str):
+        s = np.asarray(scale, dtype=float)
+        if s.shape != (m,) or not np.all(np.isfinite(s)) or np.any(s <= 0):
+            msg = (
+                f"scale as an array must hold {m} finite positive numbers, one "
+                f"per margin; got {scale!r}"
+            )
+            raise ValueError(msg)
+        return s
     if scale == "relative":
         if np.any(b == 0):
             msg = (
                 "scale='relative' divides each residual by |b_j|, but some "
-                "targets are zero; use scale='absolute'"
+                "targets are zero; use scale='absolute' or a scale array"
             )
             raise ValueError(msg)
-        s = np.abs(b)
-    elif scale == "absolute":
-        s = np.ones(m)
-    else:
-        msg = f"scale must be 'relative' or 'absolute', got {scale!r}"
-        raise ValueError(msg)
-    return A, b, w0, s
+        return np.abs(b)
+    if scale == "absolute":
+        return np.ones(m)
+    msg = f"scale must be 'relative', 'absolute' or an array, got {scale!r}"
+    raise ValueError(msg)
 
 
 def _cells(
@@ -399,7 +430,11 @@ def leximin_residual(
         min_ratio: Lower bound on weights relative to ``w0``.
         max_ratio: Upper bound on weights relative to ``w0``.
         scale: How misses are compared across margins: ``"relative"`` divides
-            each by ``|b_j|``, ``"absolute"`` uses raw misses.
+            each by ``|b_j|``, ``"absolute"`` uses raw misses, and an array
+            ``s`` of one positive number per margin divides margin ``j``'s
+            miss by ``s_j``. A larger ``s_j`` means that margin matters less:
+            ``epsilon`` is then the worst-case bias over outcomes whose
+            loadings satisfy ``sum_j s_j |beta_j| <= 1`` (see the theory page).
 
     Returns:
         Weights, raw residuals and the largest scaled miss ``epsilon``. If a
@@ -445,7 +480,11 @@ def leximin_weight_fair(
         min_ratio: Lower bound on weights relative to ``w0``.
         max_ratio: Upper bound on weights relative to ``w0``.
         scale: How misses are compared across margins: ``"relative"`` divides
-            each by ``|b_j|``, ``"absolute"`` uses raw misses.
+            each by ``|b_j|``, ``"absolute"`` uses raw misses, and an array
+            ``s`` of one positive number per margin divides margin ``j``'s
+            miss by ``s_j``. A larger ``s_j`` means that margin matters less:
+            ``epsilon`` is then the worst-case bias over outcomes whose
+            loadings satisfy ``sum_j s_j |beta_j| <= 1`` (see the theory page).
         slack: Extra scaled miss each margin may take on top of its leximin
             level, in the units of ``scale`` (a fraction of the target under
             ``"relative"``), to buy smaller weight changes.

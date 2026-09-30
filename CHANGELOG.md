@@ -9,6 +9,20 @@ that version.
 
 ## [Unreleased]
 
+### Added
+
+- `scale` accepts one positive number per margin, so users can say which
+  margins matter: margin `j`'s miss is divided by `s_j`.
+- A theory page stating what `epsilon` guarantees: it is the worst-case bias
+  a weighted total can pick up from the misses, over outcomes with
+  `sum_j s_j |beta_j| <= 1`. The page also covers the other properties of the
+  method and its limits. `tests/test_theory.py` checks each claim numerically.
+
+### Changed
+
+- The README says plainly that "fair" refers to sharing calibration misses
+  across margins, not to machine-learning fairness.
+
 ## [0.4.0] - 2026-09-29
 
 ### Fixed

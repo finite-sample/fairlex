@@ -15,6 +15,16 @@ shrinks the worst margin miss first, then the next worst, and so on, with every 
 kept within a fixed ratio of its base value. Misses are compared as a percentage of each
 target by default, so a small group's miss is not swamped by the population total.
 
+This is not a machine-learning fairness library. "Fair" refers to how unavoidable
+calibration misses are shared across margins.
+
+The largest scaled miss, ``epsilon``, has a direct meaning: it is the worst-case bias,
+across outcomes, that the misses can add to a weighted total. The outcomes covered are
+those whose dependence on the margins is bounded by the per-margin ``scale``. Passing
+your own ``scale`` array says which margins matter more. The "Why leximin" page of the
+[documentation](https://finite-sample.github.io/fairlex/) gives the statement, the
+one-line proof and what it does not cover.
+
 Why use it?
 -----------
 

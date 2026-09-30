@@ -53,6 +53,10 @@ def test_1d_membership_matrix():
         ([[1.0, 1.0]], [1.0], [1.0, 1.0], {"max_ratio": np.inf}, "ratio"),
         ([[1.0, 1.0]], [1.0], [1.0, 1.0], {"scale": "log"}, "scale"),
         ([[1.0, 1.0]], [0.0], [1.0, 1.0], {}, "relative"),
+        ([[1.0, 1.0]], [1.0], [1.0, 1.0], {"scale": [1.0, 2.0]}, "scale"),
+        ([[1.0, 1.0]], [1.0], [1.0, 1.0], {"scale": [0.0]}, "scale"),
+        ([[1.0, 1.0]], [1.0], [1.0, 1.0], {"scale": [-1.0]}, "scale"),
+        ([[1.0, 1.0]], [1.0], [1.0, 1.0], {"scale": [np.nan]}, "scale"),
     ],
 )
 def test_invalid_inputs_raise(A, b, w0, kwargs, match):
@@ -255,6 +259,45 @@ def test_relative_scale_protects_small_groups():
     assert np.allclose(np.abs(absolute.residuals), 10.0)
     assert np.abs(absolute.residuals[1]) / 60 > 0.16
     assert np.allclose(np.abs(relative.residuals) / b, 30 / 2030)
+
+
+def test_scale_array_equal_to_targets_matches_relative():
+    A, b, w0 = _conflicting_margins()
+
+    relative = leximin_residual(A, b, w0)
+    explicit = leximin_residual(A, b, w0, scale=np.abs(b))
+
+    assert np.allclose(relative.residuals, explicit.residuals, atol=ACC)
+    assert np.isclose(relative.epsilon, explicit.epsilon, atol=ACC)
+
+
+def test_scale_array_sets_margin_priority():
+    """Doubling s_j tolerates twice the miss on margin j at the same priority.
+
+    The misses must sum to 30 across the three margins. With s = |b| they
+    are equal percentages; doubling the group's s lets it take twice the
+    percentage miss of the others.
+    """
+    A, b, w0 = _conflicting_margins()
+    s = np.abs(b) * np.array([1.0, 2.0, 1.0])
+
+    result = leximin_residual(A, b, w0, scale=s)
+
+    scaled = np.abs(result.residuals) / s
+    assert np.allclose(scaled, scaled[0], atol=ACC)
+    assert np.isclose(np.abs(result.residuals).sum(), 30.0, atol=1e-3)
+    assert np.isclose(
+        np.abs(result.residuals[1]) / 60, 2 * np.abs(result.residuals[0]) / 1000
+    )
+
+
+def _conflicting_margins():
+    """Group of 30 (target 60) + complement (target 970) vs total 1000."""
+    n, n_g = 1000, 30
+    group = np.r_[np.ones(n_g), np.zeros(n - n_g)]
+    A = np.vstack([np.ones(n), group, 1 - group])
+    w0 = np.r_[np.full(n_g, 2.0), np.ones(n - n_g)]
+    return A, np.array([1000.0, 60.0, 970.0]), w0
 
 
 # Weight-fair stage

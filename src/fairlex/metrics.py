@@ -117,10 +117,21 @@ def _compute_weight_metrics(
     Returns:
         Dictionary containing weight distribution metrics.
 
+    Raises:
+        ValueError: If two quantiles round to the same ``weight_p*`` key.
+
     """
+    # Keys use ``:g`` (six significant digits) so common quantiles read as
+    # weight_p99 or weight_p97.5; exact float formatting would print 0.07 as
+    # weight_p7.000000000000001. The price is that very close quantiles can
+    # round to one key, which is refused rather than silently overwritten.
+    keys = {q: f"weight_p{100 * q:g}" for q in quantiles}
+    if len(set(keys.values())) < len(keys):
+        msg = f"quantiles {quantiles} round to the same key; separate them further"
+        raise ValueError(msg)
     result = {"weight_min": float(np.min(w)), "weight_max": float(np.max(w))}
     for q, value in zip(quantiles, np.quantile(w, quantiles), strict=True):
-        result[f"weight_p{100 * q:g}"] = float(value)
+        result[keys[q]] = float(value)
     result["ESS"] = float(effective_sample_size(w))
     result["deff"] = float(design_effect(w))
     return result
@@ -183,8 +194,8 @@ def evaluate_solution(
 
     Raises:
         ValueError: If ``w`` has non-finite or negative entries (e.g. the
-            ``NaN`` weights of a failed solve), or a quantile is outside
-            ``[0, 1]``.
+            ``NaN`` weights of a failed solve), a quantile is outside
+            ``[0, 1]``, or two quantiles round to the same key.
 
     """
     w = np.asarray(w, dtype=float)

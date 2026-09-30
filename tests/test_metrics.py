@@ -153,3 +153,14 @@ def test_invalid_quantile_raises():
         evaluate_solution(
             np.array([[1, 1]]), np.array([1.0]), np.ones(2), quantiles=(1.5,)
         )
+
+
+def test_quantiles_that_share_a_key_raise():
+    """Distinct quantiles must not silently overwrite each other's key."""
+    with pytest.raises(ValueError, match="same key"):
+        evaluate_solution(
+            np.array([[1, 1, 1]]),
+            np.array([6.0]),
+            np.array([1.0, 2.0, 3.0]),
+            quantiles=(0.1234567, 0.1234568),
+        )

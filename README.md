@@ -50,6 +50,14 @@ It is fast. Respondents with the same margin memberships share one ratio, so the
 programmes grow with the number of distinct membership patterns, not respondents: 50,000
 respondents on five 0/1 margins take about 0.1 s.
 
+The documentation's "Where it helps" page puts numbers on this with a simulation of
+disagreeing sources and capped weights. When sources disagree, fairlex's worst miss is
+about a third lower than ridge calibration's, and small groups land closer to the
+truth. The cost is somewhat higher average error when targets are nearly consistent.
+Normalising each source to shares before calling fairlex keeps most of raking's
+accuracy without breaking the weight caps, which raking with trimming broke in 90% to
+100% of samples.
+
 When not to use it
 ------------------
 

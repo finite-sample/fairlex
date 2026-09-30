@@ -56,6 +56,10 @@ docs = [
   "sphinx-copybutton",
   "pandas>=2.0.0",
 ]
+bench = [
+    "polars>=1.0",
+    "svy>=0.30",
+]
 
 [tool.ruff]
 line-length = 88
@@ -91,6 +95,8 @@ max-args = 8
 # PLR2004: assertions compare against literal expected values by design.
 "tests/**" = ["S101", "D", "ARG", "SLF", "PLR2004"]
 "docs/**" = ["D"]
+# T201: the regime study is a command-line script whose output is its report.
+"benchmarks/**" = ["T201"]
 # T201: printing is how a tutorial notebook produces its rendered output.
 "docs/**/*.ipynb" = ["D", "T201"]
 

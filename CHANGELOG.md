@@ -17,6 +17,9 @@ that version.
   a weighted total can pick up from the misses, over outcomes with
   `sum_j s_j |beta_j| <= 1`. The page also covers the other properties of the
   method and its limits. `tests/test_theory.py` checks each claim numerically.
+- A synthetic study (`benchmarks/regimes.py`, docs page "Where it helps")
+  comparing fairlex with raking-plus-trimming (svy) and ridge calibration
+  when targets disagree and weights are capped, with standard errors.
 
 ### Changed
 

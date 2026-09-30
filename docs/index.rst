@@ -89,6 +89,7 @@ Contents
    :maxdepth: 2
 
    theory
+   regimes
    examples
    api
 

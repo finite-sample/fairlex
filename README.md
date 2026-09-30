@@ -8,11 +8,12 @@ fairlex: leximin calibration
 [![Docs](https://img.shields.io/badge/docs-github.io-blue)](https://finite-sample.github.io/fairlex/)
 
 
-``fairlex`` implements risk-averse calibration of survey weights using leximin objectives. 
-Unlike standard calibration that either (a) hits all margins exactly (sometimes creating 
-spiky weights) or (b) accepts uneven misses, leximin prioritizes uniform guarantees: it 
-shrinks the worst margin error first (then the next worst, etc.) and can also cap how 
-far any weight is allowed to move from its base value.
+``fairlex`` implements risk-averse calibration of survey weights using leximin objectives.
+Unlike standard calibration that either (a) hits all margins exactly (sometimes creating
+spiky weights) or (b) accepts uneven misses, leximin prioritizes uniform guarantees: it
+shrinks the worst margin miss first, then the next worst, and so on, with every weight
+kept within a fixed ratio of its base value. Misses are compared as a percentage of each
+target by default, so a small group's miss is not swamped by the population total.
 
 Why use it?
 -----------
@@ -27,19 +28,25 @@ When exact calibration is infeasible under weight caps.
 flexible enough to support different calibration objectives. The two
 principal calibration strategies are:
 
-* **Residual leximin** – finds weights that minimise the worst absolute
-  deviation from the target margins (``min–max`` residuals). This can drive
-  margin errors down to machine precision, but may result in large weight
-  adjustments.
-* **Weight‐fair leximin** – first performs residual leximin, then
-  minimises the largest relative change from the base weights while keeping
-  residuals at their optimum level. This yields a more stable set of weights.
+* **Residual leximin** (``leximin_residual``) – finds weights whose margin
+  misses are leximin-optimal: the largest miss is as small as the weight
+  bounds allow, then the second largest, and so on. Many weight vectors
+  achieve those misses; this function returns one of them.
+* **Weight‐fair leximin** (``leximin_weight_fair``) – keeps every margin at
+  its leximin miss (plus an optional ``slack``) and, among those weights,
+  makes the relative weight changes ``|w - w0| / w0`` leximin-optimal too.
+  A group's adjustment is spread evenly over its members, and units no
+  margin needs to move keep their base weight.
+
+Both are solved as sequences of linear programmes (SciPy's HiGHS) over the
+distinct membership patterns in ``A``, so with 0/1 margins the cost barely
+depends on the number of respondents.
 
 Installation
 ------------
 
 ``fairlex`` requires Python 3.12+ and depends on ``numpy>=1.26`` and
-``scipy>=1.11``. You can install it via pip once uploaded to PyPI:
+``scipy>=1.12``. Install it from PyPI:
 
 ```bash
 pip install fairlex
@@ -98,8 +105,13 @@ metrics = evaluate_solution(A, target, weights, base_weights=w0)
 print(metrics)
 ```
 
+``res.residuals`` holds the raw misses ``A @ w - b``, ``res.epsilon`` the
+largest miss as a fraction of its target (``scale="absolute"`` compares raw
+misses instead) and ``res.t`` the largest relative weight change.
+
 ``evaluate_solution`` returns a dictionary with a variety of diagnostics,
-including the maximum absolute residual, effective sample size (ESS), design
-effect and quantiles of the weight distribution. If you supply the base
-weights via ``base_weights``, it also reports relative deviations from the
-original weights.
+including the largest absolute and relative residual, effective sample size
+(ESS), design effect and the requested quantiles of the weight distribution
+(``weight_p99``, ``weight_p95``, ``weight_p50`` by default). If you supply
+the base weights via ``base_weights``, it also reports relative deviations
+from the original weights, over units whose base weight is positive.

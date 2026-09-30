@@ -7,63 +7,115 @@ fairlex: leximin calibration
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docs](https://img.shields.io/badge/docs-github.io-blue)](https://finite-sample.github.io/fairlex/)
 
+When your survey weights cannot hit every target, something has to give.
+``fairlex`` decides what gives by a rule you can state and defend: make the worst
+percentage miss across your margins as small as possible, then the next worst, and so
+on, while keeping every weight within a fixed ratio of its base weight.
 
-``fairlex`` implements risk-averse calibration of survey weights using leximin objectives.
-Unlike standard calibration that either (a) hits all margins exactly (sometimes creating
-spiky weights) or (b) accepts uneven misses, leximin prioritizes uniform guarantees: it
-shrinks the worst margin miss first, then the next worst, and so on, with every weight
-kept within a fixed ratio of its base value. Misses are compared as a percentage of each
-target by default, so a small group's miss is not swamped by the population total.
+Targets often cannot all be hit. They come from different sources that disagree (census
+age by sex, a voter file for party, last year's survey for region), and weight caps
+limit how far any respondent can be pushed. Raking then stops wherever it stops, and
+penalised calibration spreads the misses according to a tuning constant nobody reports.
+Either way, a small group can quietly end up far off its target.
 
-This is not a machine-learning fairness library. "Fair" refers to how unavoidable
-calibration misses are shared across margins.
+The name is about that choice. "Fair" means sharing unavoidable misses across margins,
+not machine-learning fairness.
 
-The largest scaled miss, ``epsilon``, has a direct meaning: it is the worst-case bias,
-across outcomes, that the misses can add to a weighted total. The outcomes covered are
-those whose dependence on the margins is bounded by the per-margin ``scale``. Passing
-your own ``scale`` array says which margins matter more. The "Why leximin" page of the
-[documentation](https://finite-sample.github.io/fairlex/) gives the statement, the
-one-line proof and what it does not cover.
+What you get
+------------
 
-Why use it?
------------
+A small group is not sacrificed to the big margins. In the example below, three targets
+contradict each other by 30 people. Comparing raw counts puts almost the whole miss on a
+group of 30, which ends up 16.7% short. fairlex's default spreads it as an equal 1.48%
+on every margin.
 
-When exact calibration is infeasible under weight caps.
+You get one number that bounds the damage. ``epsilon``, the largest scaled miss, is the
+most bias the misses can add to *any* weighted estimate, among outcomes whose dependence
+on the margins is limited by the scale you chose. The
+[documentation](https://finite-sample.github.io/fairlex/) proves this in one line and
+says what it does not cover.
 
-1. When targets are noisy/inconsistent and you want bounded misses rather than fragile exact hits.
-2. When you need fairness/stability—no margin (or subgroup) becomes the sacrificial lamb.
-3. In rolling waves, to prevent whiplash by bounding the worst per-unit weight changes.
+You set the priorities. Pass one scale per margin, and a margin with a smaller scale is
+protected more. Giving the small group four times the priority cuts its miss from 1.48%
+to 0.38%.
 
-``fairlex`` is designed to be both easy to use and
-flexible enough to support different calibration objectives. The two
-principal calibration strategies are:
+Weights move as little as they can. Among weights with the best misses,
+``leximin_weight_fair`` makes the relative changes ``|w - w0| / w0`` leximin-optimal
+too. Each group's adjustment is spread evenly over its members, units no margin needs to
+move keep their base weight, and the design effect is bounded by the largest change.
+Pass last wave's weights as ``w0`` and a new wave moves each respondent as little as the
+new targets allow.
 
-* **Residual leximin** (``leximin_residual``) – finds weights whose margin
-  misses are leximin-optimal: the largest miss is as small as the weight
-  bounds allow, then the second largest, and so on. Many weight vectors
-  achieve those misses; this function returns one of them.
-* **Weight‐fair leximin** (``leximin_weight_fair``) – keeps every margin at
-  its leximin miss (plus an optional ``slack``) and, among those weights,
-  makes the relative weight changes ``|w - w0| / w0`` leximin-optimal too.
-  A group's adjustment is spread evenly over its members, and units no
-  margin needs to move keep their base weight.
+It is fast. Respondents with the same margin memberships share one ratio, so the linear
+programmes grow with the number of distinct membership patterns, not respondents: 50,000
+respondents on five 0/1 margins take about 0.1 s.
 
-Both are solved as sequences of linear programmes (SciPy's HiGHS) over the
-distinct membership patterns in ``A``, so with 0/1 margins the cost barely
-depends on the number of respondents.
+When not to use it
+------------------
+
+If your targets are consistent and reachable within your weight caps, every calibration
+method hits them, and the choice among methods matters less. Standard raking in
+[svy](https://github.com/samplics-org/svy) or [balance](https://github.com/facebookresearch/balance)
+is fine. If you care about a single outcome and know how it depends on the margins, a
+method tuned to that outcome can do better on it than a worst-case guarantee.
 
 Installation
 ------------
 
-``fairlex`` requires Python 3.12+ and depends on ``numpy>=1.26`` and
-``scipy>=1.12``. Install it from PyPI:
+``fairlex`` requires Python 3.12+ and depends on ``numpy>=1.26`` and
+``scipy>=1.12``:
 
 ```bash
 pip install fairlex
 ```
 
-For development, clone this repository and sync the environment with
-[uv](https://docs.astral.sh/uv/):
+Usage
+-----
+
+Each row of the membership matrix ``A`` is a margin and each column a respondent
+(1 if the respondent belongs to the margin, else 0). ``b`` holds the target totals and
+``w0`` the base weights.
+
+```python
+import numpy as np
+from fairlex import leximin_weight_fair
+
+# 1,000 respondents: 30 in a small group, 970 outside it
+group = np.r_[np.ones(30), np.zeros(970)]
+A = np.vstack([np.ones(1000), group, 1 - group])
+# Targets from different sources: 60 + 970 = 1030, but the total says 1000
+b = np.array([1000.0, 60.0, 970.0])
+w0 = np.r_[np.full(30, 2.0), np.ones(970)]
+
+res = leximin_weight_fair(A, b, w0, min_ratio=0.5, max_ratio=2.0)
+print(res.residuals / b)  # [ 0.0148 -0.0148 -0.0148]: an equal 1.48% miss each
+print(res.epsilon, res.t)  # largest relative miss 1.48%, largest weight change 1.48%
+
+# Raw counts instead of percentages: the small group absorbs the miss
+leximin_weight_fair(A, b, w0, min_ratio=0.5, max_ratio=2.0, scale="absolute")
+# relative misses: +1.00%, -16.67%, -1.03%
+
+# Four times the priority for the small group: a smaller scale means more protection
+s = np.abs(b)
+s[1] /= 4
+leximin_weight_fair(A, b, w0, min_ratio=0.5, max_ratio=2.0, scale=s)
+# relative misses: +1.51%, -0.38%, -1.51%
+```
+
+``leximin_residual`` stops after the first stage and returns some weights achieving the
+best misses. Use it when only the misses matter. ``leximin_weight_fair`` is the usual
+choice.
+
+``res.residuals`` holds the raw misses ``A @ w - b``, ``res.epsilon`` the largest scaled
+miss and ``res.t`` the largest relative weight change. ``slack`` lets every margin miss by
+a little more than its leximin level in exchange for smaller weight changes.
+
+``evaluate_solution(A, b, res.w, base_weights=w0)`` reports the largest absolute and
+relative miss, effective sample size, design effect, weight quantiles
+(``weight_p99``, ``weight_p95``, ``weight_p50`` by default) and relative weight changes.
+
+Development
+-----------
 
 ```bash
 git clone https://github.com/finite-sample/fairlex.git
@@ -71,57 +123,4 @@ cd fairlex
 uv sync --all-groups
 ```
 
-`make help` lists the available development targets; `make ci` runs the same
-checks CI does.
-
-Usage
------
-
-Construct a membership matrix ``A`` of shape ``(m, n)``, where each row
-corresponds to a margin and each column to a survey unit. Each entry
-represents whether the unit belongs to the margin (1.0 or 0.0 for simple
-groups). Supply the target totals ``b``, the base weights ``w0`` and call
-the desired calibration function:
-
-```python
-import numpy as np
-from fairlex import leximin_weight_fair, evaluate_solution
-
-# Example data: two margins (sex and age) plus total
-A = np.array(
-    [
-        # sex: female
-        [1, 0, 1, 0, 1],
-        # sex: male
-        [0, 1, 0, 1, 0],
-        # age: young
-        [1, 1, 0, 0, 1],
-        # age: old
-        [0, 0, 1, 1, 0],
-        # total
-        [1, 1, 1, 1, 1],
-    ],
-    dtype=float,
-)
-target = np.array([6, 4, 6, 4, 10], dtype=float)  # Feasible targets
-w0 = np.array([1, 1, 1, 1, 1], dtype=float)
-
-# Calibrate using weight‐fair leximin
-res = leximin_weight_fair(A, target, w0, min_ratio=0.5, max_ratio=2.0)
-
-# Inspect the weights and diagnostics
-weights = res.w
-metrics = evaluate_solution(A, target, weights, base_weights=w0)
-print(metrics)
-```
-
-``res.residuals`` holds the raw misses ``A @ w - b``, ``res.epsilon`` the
-largest miss as a fraction of its target (``scale="absolute"`` compares raw
-misses instead) and ``res.t`` the largest relative weight change.
-
-``evaluate_solution`` returns a dictionary with a variety of diagnostics,
-including the largest absolute and relative residual, effective sample size
-(ESS), design effect and the requested quantiles of the weight distribution
-(``weight_p99``, ``weight_p95``, ``weight_p50`` by default). If you supply
-the base weights via ``base_weights``, it also reports relative deviations
-from the original weights, over units whose base weight is positive.
+`make help` lists the development targets; `make ci` runs the same checks CI does.

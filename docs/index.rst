@@ -6,9 +6,10 @@ fairlex: Leximin Calibration for Survey Weights
 Features
 --------
 
-- **Residual leximin**: Minimizes the worst absolute deviation from target margins
-- **Weight-fair leximin**: Performs residual leximin then minimizes largest relative change from base weights
-- Fast linear programming implementation using SciPy's HiGHS solver
+- **Residual leximin**: makes the largest margin miss as small as possible, then the next largest, and so on
+- **Weight-fair leximin**: keeps those misses and makes the relative weight changes leximin-fair as well
+- Misses compared as a percentage of each target by default (``scale="relative"``)
+- Linear programmes solved with SciPy's HiGHS over distinct membership cells, so large samples are cheap
 - Comprehensive solution evaluation and diagnostic metrics
 - Type-safe implementation with full type annotations
 
@@ -27,7 +28,7 @@ Or for development:
 
     git clone https://github.com/finite-sample/fairlex.git
     cd fairlex
-    pip install -e .[dev]
+    uv sync --all-groups
 
 Quick Start
 -----------
@@ -53,7 +54,7 @@ Quick Start
     result = leximin_weight_fair(A, target, w0, min_ratio=0.5, max_ratio=2.0)
     
     print("Calibrated weights:", result.w)
-    print("Max residual:", result.epsilon)
+    print("Largest relative miss:", result.epsilon)
     print("Max relative weight change:", result.t)
     
     # Evaluate solution quality
@@ -67,19 +68,19 @@ Calibration Methods
 fairlex provides two calibration approaches:
 
 **leximin_residual**
-    Minimizes the worst absolute margin residual across all constraints (min-max problem). 
-    This approach will tend to squeeze margin errors to near zero at the cost of increased 
-    leverage on the weights.
+    Finds weights whose margin misses are leximin-optimal: the largest miss is as small as
+    the weight bounds allow, then the second largest given that, and so on. The misses are
+    unique; the weights achieving them usually are not, and this function returns one set.
 
 **leximin_weight_fair**
-    After achieving the smallest possible worst residual, this method minimizes the largest 
-    relative change from the base weights. It balances fairness in both the errors and the 
-    weight movements, leading to more stable calibrated weights.
+    Keeps every margin at its leximin miss (plus an optional ``slack``) and, among those
+    weights, makes the relative changes ``|w - w0| / w0`` leximin-optimal. Each group's
+    adjustment is spread evenly over its members, and units no margin needs to move stay
+    at their base weight.
 
-Both methods support:
-- Flexible weight bounds specified as multiplicative ratios
-- Optional slack parameters for practical tolerance
-- Comprehensive diagnostic output
+Both methods take weight bounds as multiplicative ratios of the base weights and a
+``scale`` argument: ``"relative"`` (default) compares misses as a fraction of each target,
+``"absolute"`` compares raw misses.
 
 Contents
 --------

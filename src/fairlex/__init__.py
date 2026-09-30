@@ -4,15 +4,13 @@ This package provides routines for leximin-style calibration of survey weights.
 
 Two primary calibration strategies are exposed:
 
-* ``leximin_residual`` - minimises the worst absolute margin residual across all
-  constraints (min-max), optionally refining the next worst in lexicographic
-  order. This approach will tend to squeeze margin errors to near zero at the
-  cost of increased leverage on the weights.
+* ``leximin_residual`` - makes the vector of scaled margin misses
+  leximin-optimal: the largest miss is minimised, then the next largest, and
+  so on.
 
-* ``leximin_weight_fair`` - after achieving the smallest possible worst
-  residual, this method minimises the largest relative change from the base
-  weights. It balances fairness in both the errors and the weight movements,
-  offering a compromise between calibration accuracy and variance inflation.
+* ``leximin_weight_fair`` - keeps each margin at its leximin miss and makes
+  the relative weight changes leximin-optimal as well, spreading each
+  adjustment evenly over the units that supply it.
 
 The core implementation lives in :mod:`fairlex.calibration`. Convenience
 functions and metric helpers live in :mod:`fairlex.metrics`.

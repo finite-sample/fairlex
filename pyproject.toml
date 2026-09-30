@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "fairlex"
-version = "0.3.0"
+version = "0.4.0"
 description = "Leximin calibration for survey weights"
 authors = [
   { name = "Gaurav Sood", email = "contact@gsood.com" },
@@ -15,7 +15,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
   "numpy>=1.26.0",
-  "scipy>=1.11.0",
+  "scipy>=1.12.0",
 ]
 classifiers = [
   "Development Status :: 3 - Alpha",
@@ -74,10 +74,11 @@ convention = "google"
 
 [tool.ruff.lint.pep8-naming]
 # `A` is the membership matrix throughout the calibration literature this
-# package implements, and `A_ub` is scipy.optimize.linprog's own parameter
-# name. Lowercasing either would make the code harder to check against the
-# maths, so the two names are exempt rather than the N rules being dropped.
-extend-ignore-names = ["A", "A_ub"]
+# package implements, and `A_ub` / `A_eq` are scipy.optimize.linprog's own
+# parameter names. Lowercasing them would make the code harder to check
+# against the maths and the SciPy docs, so these names are exempt rather than
+# the N rules being dropped.
+extend-ignore-names = ["A", "A_ub", "A_eq"]
 
 [tool.ruff.lint.pylint]
 # The two public entry points take the LP's data (A, b, w0) plus its bounds

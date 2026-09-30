@@ -19,9 +19,12 @@ from .metrics import design_effect, effective_sample_size
 # the worst one: the solver holds levels to about 1e-6 of the target scale.
 _BINDING_RTOL = 1e-4
 _MIN_BINDING = 1e-6
-# Shares may be rounded when published; within this of 1 they count as summing
-# to 1. Also the relative tolerance for variables agreeing on a population size.
-_SHARE_TOL = 1e-3
+# Published shares are rounded: k shares rounded to three decimals can sum to
+# anywhere within k * 0.0005 of 1. Within this of 1 they count as proportions
+# and are rescaled to sum exactly to 1.
+_SHARE_TOL = 1e-2
+# Relative tolerance for variables' target sums agreeing on a population size.
+_SIZE_TOL = 1e-3
 # A unit counts as at its bound when its ratio is within this fraction of the
 # bound. The weight stage may move a capped unit by ~1e-4 while holding the
 # margins to their tolerance (1.24984 against a 1.25 cap in the docs example),
@@ -152,11 +155,12 @@ def _totals(
         total: Population size, required with ``shares``.
 
     Returns:
-        Target totals, one per margin.
+        Target totals, one per margin. Each variable's shares are rescaled to
+        sum exactly to 1 first, which absorbs rounding in published shares.
 
     Raises:
         ValueError: If ``shares`` is set without ``total`` or a variable's
-            shares do not sum to 1.
+            shares do not sum to 1 within rounding.
 
     """
     if not shares:
@@ -170,7 +174,8 @@ def _totals(
         detail = ", ".join(f"{v} sums to {s:g}" for v, s in off.items())
         msg = f"with shares=True each variable's targets must sum to 1: {detail}"
         raise ValueError(msg)
-    return b * total
+    divisor = np.array([sums[v] for v in variables])
+    return b / divisor * total
 
 
 def _starting_weights(
@@ -203,7 +208,7 @@ def _starting_weights(
     size = total
     if size is None:
         sums = list(_variable_sums(b, variables).values())
-        if max(sums) - min(sums) > _SHARE_TOL * max(sums):
+        if max(sums) - min(sums) > _SIZE_TOL * max(sums):
             msg = (
                 "the variables' targets imply different population sizes "
                 f"({min(sums):g} to {max(sums):g}); pass total= or base_weight="

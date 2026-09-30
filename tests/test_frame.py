@@ -226,3 +226,22 @@ def test_shares_must_sum_to_one(survey):
 def test_negative_targets_raise(survey):
     with pytest.raises(ValueError, match="non-negative"):
         calibrate(survey, {"sex": {"f": -1.0, "m": 401.0}})
+
+
+@pytest.mark.parametrize(
+    "shares",
+    [
+        {"a": 0.333, "b": 0.333, "c": 0.333},
+        {"a": 0.2, "b": 0.2, "c": 0.2, "d": 0.2, "e": 0.198},
+    ],
+)
+def test_rounded_published_shares_are_accepted(shares):
+    """Shares rounded to three decimals: no error and no false conflict."""
+    levels = list(shares)
+    df = pd.DataFrame({"g": levels * 20})
+    total = 100.0 * len(levels)
+
+    report = calibrate(df, {"g": shares}, shares=True, total=total)
+
+    assert report.binding == []
+    assert np.isclose(report.weights.sum(), total, rtol=ACC)

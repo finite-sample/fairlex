@@ -48,7 +48,8 @@ that version.
 - **Breaking:** `evaluate_solution` names quantile keys after the request
   (`weight_p50` replaces `weight_median`), drops `total_error` (it assumed
   the last margin was the population total), adds `resid_max_rel` and
-  `n_zero_base_moved`, and raises on non-finite or negative weights.
+  `n_zero_base_moved`, and raises on non-finite or negative weights and on
+  quantiles close enough to round to the same key.
 
 - Adopted the py-canon fleet standard: reusable CI, docs and release
   workflows, the shared Sphinx configuration, and the canon ruff rule set.

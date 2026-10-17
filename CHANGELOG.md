@@ -18,7 +18,7 @@ that version.
   `base_weight`, `total`, `importance` (per-variable priority), `bounds` and
   `slack`. It returns a `CalibrationReport` with the weights, a per-target
   table of misses, ESS and design effect, and the worst-missed targets, each
-  labelled "conflicting targets" or "weight bounds". It rejects negative
+  labeled "conflicting targets" or "weight bounds". It rejects negative
   targets, shares that do not sum to 1 (beyond rounding), and a missing `total` when the
   variables imply different population sizes.
 - `calibrate_replicates(df, targets, replicate_columns, ...)`: calibrate
@@ -50,7 +50,7 @@ that version.
 
 ### Fixed
 
-- `leximin_residual` was only min-max: it minimised the largest miss and left
+- `leximin_residual` was only min-max: it minimized the largest miss and left
   the rest wherever the solver landed. It now computes the full leximin
   vector (saturation with dual variables, Ogryczak & Śliwiński 2006).
 - `CalibrationResult.epsilon` reported the first stage's optimum even when
@@ -64,7 +64,7 @@ that version.
   round's level is held with a 3e-7 relative tolerance, above HiGHS's 1e-7
   feasibility tolerance. Tighter settings made the weight stage report
   feasible survey problems as infeasible.
-- `evaluate_solution` labelled whatever quantiles were requested as
+- `evaluate_solution` labeled whatever quantiles were requested as
   `weight_p99` / `weight_p95`, and divided by 1 for zero base weights.
 
 ### Changed
@@ -72,7 +72,7 @@ that version.
 - **Breaking:** misses are compared relative to each target by default
   (`scale="relative"`); pass `scale="absolute"` for raw misses.
 - **Breaking:** `leximin_weight_fair` makes the relative weight changes
-  leximin-optimal instead of only minimising the largest one, which had let
+  leximin-optimal instead of only minimizing the largest one, which had let
   every unit move by the maximum. `slack` is per margin, in `scale` units.
 - **Breaking:** `leximin_weight_fair` always returns one `CalibrationResult`;
   `return_stages` is gone (call `leximin_residual` for the first stage).

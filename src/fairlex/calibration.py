@@ -48,7 +48,7 @@ class CalibrationResult:
         t: Largest relative weight change ``|w_i - w0_i| / w0_i`` achieved,
             over units with positive base weight. ``None`` if the solve
             failed.
-        status: Status code of the last linear programme (0 is success).
+        status: Status code of the last linear program (0 is success).
         message: Solver termination message for diagnostics.
 
     """
@@ -187,7 +187,7 @@ def _leximin(
 ) -> tuple[np.ndarray, np.ndarray | None, OptimizeResult | None]:
     """Leximin levels of ``|rows_obj x - center|`` by saturation.
 
-    Each round minimises the largest deviation ``z`` over the objectives not
+    Each round minimizes the largest deviation ``z`` over the objectives not
     yet fixed, holding fixed objectives at their levels. An objective whose
     ``|e_j| <= z`` rows carry a positive dual is at ``z*`` in every optimal
     solution of that round (complementary slackness), so it can be fixed
@@ -214,8 +214,8 @@ def _leximin(
 
     Returns:
         ``(levels, x, res)``: each objective's leximin level, the solution of
-        the last round (``None`` if no programme was solved) and the last
-        ``OptimizeResult`` (``None`` if no programme was solved).
+        the last round (``None`` if no program was solved) and the last
+        ``OptimizeResult`` (``None`` if no program was solved).
 
     """
     p, n_cells = len(center), len(bounds)
@@ -322,7 +322,7 @@ def _result(
         epsilon=float(scaled.max()) if len(scaled) else 0.0,
         t=t,
         status=0 if res is None else int(res.status),
-        message="No linear programme needed." if res is None else str(res.message),
+        message="No linear program needed." if res is None else str(res.message),
     )
 
 

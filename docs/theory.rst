@@ -43,9 +43,9 @@ change.
 :math:`\beta = \operatorname{sign}(r_k)\, e_k / s_k`, where :math:`k` is the
 margin with the largest scaled miss. :math:`\square`
 
-So minimising :math:`\epsilon` minimises the worst-case calibration bias over
+So minimizing :math:`\epsilon` minimizes the worst-case calibration bias over
 that set of outcomes. Leximin refines this. Once the margins that attain the
-minimum are fixed, it minimises the worst case over outcomes that load only on
+minimum are fixed, it minimizes the worst case over outcomes that load only on
 the remaining margins, and so on. That is the precise sense in which no
 margin is sacrificed.
 
@@ -95,5 +95,5 @@ What this does not cover
 The guarantee is about the calibration term :math:`r^\top \beta` only, for
 outcomes in the chosen set. It says nothing about the remainder term or about
 sampling variance beyond the design-effect bound. It also does not say that
-leximin minimises average error for a *particular* outcome: if you know which
+leximin minimizes average error for a *particular* outcome: if you know which
 outcome you care about, a method tuned to it can do better on it.

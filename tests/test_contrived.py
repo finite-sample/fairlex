@@ -12,7 +12,7 @@ ACC = 1e-5
 def test_two_groups_and_a_conflicting_total(seed):
     """Groups of targets t1, t2 and a total T != t1 + t2, any scale s.
 
-    Leximin equalises the scaled misses: the groups fall short by delta * s_g
+    Leximin equalizes the scaled misses: the groups fall short by delta * s_g
     and the total overshoots by delta * s_T, with
     delta = (t1 + t2 - T) / (s1 + s2 + sT). Caps are loose enough not to bind.
     """

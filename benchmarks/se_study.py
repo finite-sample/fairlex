@@ -8,7 +8,7 @@ error of the weighted total.
 Population: 20,000 people with age (4 levels), education (3) and region (4);
 outcome y is additive in all three plus an age-by-education interaction the
 margins miss, plus noise. Sample: Poisson sampling with inclusion
-probabilities that favour older, more educated people (expected size 1,000),
+probabilities that favor older, more educated people (expected size 1,000),
 then nonresponse that depends on age alone (response rates 35% to 80%).
 Base weights are 1 / pi, so they undo the selection but not the nonresponse;
 calibrating on age undoes the nonresponse, because it is uniform within age.
@@ -28,7 +28,7 @@ Regimes:
 Two bootstrap schemes are compared in every regime. Rao-Wu resamples a fixed
 number of units; the Poisson bootstrap lets the replicate sample size vary,
 as Poisson sampling does. When weight bounds stop calibration from absorbing
-the variation in realised sample size, only the Poisson bootstrap sees it.
+the variation in realized sample size, only the Poisson bootstrap sees it.
 
 Gates come from simcheck (bands set by the replicate count, not hand-picked):
 ``assert_se_calibrated`` in every regime, and ``assert_unbiased`` and
@@ -103,7 +103,7 @@ def noisy_targets(targets, rng):
 
 
 def inclusion_probs(pop):
-    """Poisson inclusion probabilities favouring older, more educated people."""
+    """Poisson inclusion probabilities favoring older, more educated people."""
     score = np.exp(0.35 * pop["age"].astype(int) + 0.3 * pop["edu"].astype(int))
     return np.minimum(score * EXPECTED_N / score.sum(), 1.0)
 

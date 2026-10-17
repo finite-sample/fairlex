@@ -107,10 +107,10 @@ def test_importance_protects_a_variable(survey):
     }
 
     plain = calibrate(survey, targets, base_weight="w")
-    favoured = calibrate(survey, targets, base_weight="w", importance={"age": 4.0})
+    favored = calibrate(survey, targets, base_weight="w", importance={"age": 4.0})
 
     age_miss = lambda r: r.margins.query("variable == 'age'")["miss_pct"].abs().max()  # noqa: E731
-    assert age_miss(favoured) < age_miss(plain) / 2
+    assert age_miss(favored) < age_miss(plain) / 2
 
 
 def test_report_prints(survey):
@@ -130,7 +130,7 @@ def test_report_prints(survey):
 @pytest.mark.parametrize(
     ("targets", "kwargs", "match"),
     [
-        ({"colour": {"red": 1.0}}, {}, "not a column"),
+        ({"colour": {"red": 1.0}}, {}, "not a column"),  # codespell:ignore colour
         ({"sex": {"f": 200.0}}, {}, "no target"),
         ({"sex": {"f": 1.0, "m": 1.0, "x": 1.0}}, {}, "no respondents"),
         ({"sex": {"f": 0.5, "m": 0.5}}, {"shares": True}, "total="),

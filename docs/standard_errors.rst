@@ -27,7 +27,7 @@ Match the bootstrap to the design
 
 When the weight bounds bind, calibration can no longer absorb the chance
 variation in how many people respond. The estimate then moves with the
-realised sample size, and a replicate scheme that holds the sample size fixed
+realized sample size, and a replicate scheme that holds the sample size fixed
 misses that variation. Under Poisson sampling, where the sample size is
 random, use svy's ``kind="poisson"`` bootstrap rather than Rao-Wu. This is a
 general rule for calibrated estimates, not something specific to fairlex; the
@@ -41,7 +41,7 @@ pass bands are set by the number of simulated samples, not chosen by hand.
 
 * **Population.** 20,000 people. The outcome depends on age, education and
   region, plus an age-by-education interaction that the margins miss.
-* **Sample.** Poisson sampling that favours older, more educated people, with
+* **Sample.** Poisson sampling that favors older, more educated people, with
   an expected size of 1,000. Nonresponse then depends on age, with response
   rates from 35% to 80%. The base weights undo the selection but not the
   nonresponse.
@@ -55,7 +55,7 @@ error is right (1.05 to 1.06 times the true spread) and 95% intervals cover
 With binding bounds (0.7x to 1.3x), the weights cannot undo the nonresponse,
 so the estimate is 17% low. That bias is why no interval covers. The Rao-Wu
 bootstrap reports a standard error only 0.36 times the true spread. The
-estimate tracks the realised sample size almost exactly (correlation 0.98),
+estimate tracks the realized sample size almost exactly (correlation 0.98),
 and Rao-Wu holds that size fixed. The Poisson bootstrap reports 1.02 times
 the true spread.
 

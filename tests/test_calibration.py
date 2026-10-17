@@ -78,7 +78,7 @@ def test_conflicting_targets_absolute():
 
 
 def test_conflicting_targets_relative():
-    """Relative scale equalises percentage misses: |x-3|/3 = |x-4|/4 at 24/7."""
+    """Relative scale equalizes percentage misses: |x-3|/3 = |x-4|/4 at 24/7."""
     A = np.array([[1, 0], [1, 0]])
     b = np.array([3, 4])
 
@@ -137,7 +137,7 @@ def test_second_worst_margin_is_minimised():
 def _ordered_outcome_leximin(a_scaled, c, lb, ub, extra=None):
     """Leximin vector of |a_scaled w - c| via Ogryczak's ordered-outcome method.
 
-    Independent of fairlex's saturation loop: it lexicographically minimises
+    Independent of fairlex's saturation loop: it lexicographically minimizes
     the cumulative sums of the k largest absolute residuals, k = 1..m, using
     top_k(e) = min_u k*u + sum_j max(0, e_j - u). The successive differences
     of those optimal sums are the leximin vector in descending order.
@@ -250,7 +250,7 @@ def test_relative_scale_protects_small_groups():
 
     The targets imply 60 + 970 = 1030 but the total says 1000, so 30 units
     of miss must go somewhere. Absolute scale splits them evenly (10 each),
-    which is a 17% miss for the small group; relative scale equalises the
+    which is a 17% miss for the small group; relative scale equalizes the
     percentage misses at 30 / 2030.
     """
     n, n_g = 1000, 30

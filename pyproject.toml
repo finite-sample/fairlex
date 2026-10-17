@@ -89,7 +89,7 @@ convention = "google"
 # `A` is the membership matrix throughout the calibration literature this
 # package implements, and `A_ub` / `A_eq` are scipy.optimize.linprog's own
 # parameter names. Lowercasing them would make the code harder to check
-# against the maths and the SciPy docs, so these names are exempt rather than
+# against the math and the SciPy docs, so these names are exempt rather than
 # the N rules being dropped.
 extend-ignore-names = ["A", "A_ub", "A_eq"]
 
@@ -137,3 +137,6 @@ testpaths = ["tests"]
 source = ["src"]
 
 [tool.preen]
+
+[tool.codespell]
+builtin = "clear,rare,en-GB_to_en-US"

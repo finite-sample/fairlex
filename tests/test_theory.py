@@ -2,7 +2,7 @@
 
 Each check reaches the claimed quantity by a route that shares no code with
 the calibration solver: the worst-case bias is found by its own linear
-programme, capped post-stratification is computed in closed form, and so on.
+program, capped post-stratification is computed in closed form, and so on.
 """
 
 import numpy as np
@@ -18,7 +18,7 @@ ACC = 1e-5
 def _worst_case_bias(r, s):
     """Max of r @ beta over the ball sum_j s_j |beta_j| <= 1, by LP.
 
-    beta = u - v with u, v >= 0; maximise r @ (u - v) s.t. s @ (u + v) <= 1.
+    beta = u - v with u, v >= 0; maximize r @ (u - v) s.t. s @ (u + v) <= 1.
     """
     m = len(r)
     res = linprog(

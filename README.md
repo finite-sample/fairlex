@@ -15,7 +15,7 @@ on, while keeping every weight within a fixed ratio of its base weight.
 Targets often cannot all be hit. They come from different sources that disagree (census
 age by sex, a voter file for party, last year's survey for region), and weight caps
 limit how far any respondent can be pushed. Raking then stops wherever it stops, and
-penalised calibration spreads the misses according to a tuning constant nobody reports.
+penalized calibration spreads the misses according to a tuning constant nobody reports.
 Either way, a small group can quietly end up far off its target.
 
 The name is about that choice. "Fair" means sharing unavoidable misses across margins,

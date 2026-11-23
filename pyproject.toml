@@ -12,7 +12,7 @@ authors = [
 license = "MIT"
 license-files = ["LICENSE"]
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 dependencies = [
   "numpy>=1.26.0",
   "pandas>=2.1.1",
@@ -23,7 +23,6 @@ classifiers = [
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
-  "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
   "Intended Audience :: Science/Research",
@@ -72,7 +71,7 @@ bench = [
 
 [tool.ruff]
 line-length = 88
-target-version = "py312"
+target-version = "py313"
 
 [tool.ruff.lint]
 external = ["DOC"]
@@ -115,7 +114,7 @@ known-first-party = ["fairlex"]
 [tool.pyright]
 include = ["src"]
 typeCheckingMode = "standard"
-pythonVersion = "3.12"
+pythonVersion = "3.13"
 
 [tool.pydoclint]
 style = "google"

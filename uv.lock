@@ -498,9 +498,9 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "numpy", specifier = ">=1.26.0" },
-    { name = "pandas", specifier = ">=2.1.1" },
-    { name = "scipy", specifier = ">=1.12.0" },
+    { name = "numpy", specifier = ">=2.1.0" },
+    { name = "pandas", specifier = ">=2.2.3" },
+    { name = "scipy", specifier = ">=1.14.1" },
 ]
 
 [package.metadata.requires-dev]
